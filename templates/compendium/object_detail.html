@@ -1,0 +1,44 @@
+<section class="panel">
+  <div class="inline-header">
+    <h1>{{ game_object.name }}</h1>
+    <div id="favorite-button-{{ game_object.id }}">
+      {% include "compendium/partials/favorite_button.html" with game_object=game_object is_favorite=is_favorite %}
+    </div>
+  </div>
+  <p><strong>System:</strong> {{ game_object.system }} | <strong>Type:</strong> {{ game_object.object_type }} | <strong>Source:</strong> {{ game_object.source }}</p>
+  <p>{{ game_object.description|default:"No description." }}</p>
+</section>
+
+<section class="panel narrow">
+  <h2>Edit Object</h2>
+  <form method="post" action="{% url 'compendium:object_edit' game_object.pk %}">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button class="button" type="submit">Save Changes</button>
+  </form>
+</section>
+
+<section class="panel narrow">
+  <h2>Add To Game</h2>
+  {% if games %}
+    <form method="post" action="{% url 'games:add_object' 0 game_object.pk %}" id="add-to-game-form">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{% url 'compendium:object_detail' game_object.pk %}">
+      <label for="game-select">Game</label>
+      <select id="game-select" name="game_id" onchange="this.form.action = '/games/' + this.value + '/add-object/{{ game_object.pk }}/';">
+        <option value="">Select game</option>
+        {% for game in games %}
+          <option value="{{ game.pk }}">{{ game.title }}</option>
+        {% endfor %}
+      </select>
+      <button class="button" type="submit">Add Copy</button>
+    </form>
+  {% else %}
+    <p>Create a game first.</p>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <h2>Raw Data</h2>
+  <pre>{{ game_object.data|pprint }}</pre>
+</section>

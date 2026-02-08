@@ -1,0 +1,105 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dragon Den Compendium</title>
+  <link rel="stylesheet" href="{% static 'styles.css' %}">
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.3/Sortable.min.js"></script>
+</head>
+<body class="{% if user.is_authenticated %}is-authenticated{% else %}is-anonymous{% endif %}">
+  <div class="app-shell">
+    {% if user.is_authenticated %}
+      <aside id="sidebar" class="sidebar">
+        <div class="sidebar-header">
+          <button id="sidebar-toggle" class="button ghost" type="button">☰</button>
+          <span class="brand">Dragon Den</span>
+        </div>
+        <nav class="nav-links">
+          <a href="{% url 'core:home' %}" hx-get="{% url 'core:home' %}" hx-target="#main-content" hx-push-url="true" class="nav-link">Home</a>
+          <a href="{% url 'compendium:list' %}" hx-get="{% url 'compendium:list' %}" hx-target="#main-content" hx-push-url="true" class="nav-link">Compendium</a>
+          <a href="{% url 'compendium:object_create' %}" hx-get="{% url 'compendium:object_create' %}" hx-target="#main-content" hx-push-url="true" class="nav-link">New Object</a>
+          <a href="{% url 'compendium:tags' %}" hx-get="{% url 'compendium:tags' %}" hx-target="#main-content" hx-push-url="true" class="nav-link">Tags</a>
+          <a href="{% url 'games:list' %}" hx-get="{% url 'games:list' %}" hx-target="#main-content" hx-push-url="true" class="nav-link">Games</a>
+          <a href="{% url 'utilities:magic_item' %}" hx-get="{% url 'utilities:magic_item' %}" hx-target="#main-content" hx-push-url="true" class="nav-link">Magic Items</a>
+        </nav>
+      </aside>
+    {% endif %}
+
+    <div class="layout-right">
+      <header class="topbar">
+        <button id="mobile-menu-btn" class="button ghost mobile-only" type="button">☰</button>
+        {% if user.is_authenticated %}
+          <div class="search-wrap">
+            <form method="get" action="{% url 'compendium:search_go' %}">
+              <input
+                id="global-search"
+                class="global-search"
+                type="search"
+                name="q"
+                placeholder="Search object names..."
+                autocomplete="off"
+                hx-get="{% url 'compendium:search_preview' %}"
+                hx-trigger="keyup changed delay:250ms"
+                hx-target="#global-search-preview"
+                hx-swap="innerHTML"
+              >
+            </form>
+            <div id="global-search-preview" class="search-preview"></div>
+          </div>
+          <div class="topbar-actions">
+            <button class="button" type="button" onclick="openNotesModal()">Notes</button>
+            <form method="post" action="{% url 'logout' %}">
+              {% csrf_token %}
+              <button class="button ghost" type="submit">Logout</button>
+            </form>
+          </div>
+        {% else %}
+          <div class="auth-links">
+            <a class="button ghost" href="{% url 'login' %}">Login</a>
+            <a class="button" href="{% url 'core:signup' %}">Sign Up</a>
+          </div>
+        {% endif %}
+      </header>
+
+      {% if messages %}
+        <div class="messages">
+          {% for message in messages %}
+            <div class="message {{ message.tags }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      {% block body %}{% endblock %}
+    </div>
+  </div>
+
+  <div id="notes-modal" class="modal hidden" onclick="if(event.target === this) closeNotesModal()">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Shared Notes</h2>
+        <button class="button ghost" type="button" onclick="closeNotesModal()">Close</button>
+      </div>
+      <div id="notes-modal-content"></div>
+    </div>
+  </div>
+
+  <script src="{% static 'app.js' %}"></script>
+  <script>
+    function openNotesModal() {
+      const modal = document.getElementById("notes-modal");
+      if (!modal) return;
+      modal.classList.remove("hidden");
+      htmx.ajax("GET", "{% url 'notes:modal' %}", "#notes-modal-content");
+    }
+
+    function closeNotesModal() {
+      const modal = document.getElementById("notes-modal");
+      if (!modal) return;
+      modal.classList.add("hidden");
+    }
+  </script>
+</body>
+</html>

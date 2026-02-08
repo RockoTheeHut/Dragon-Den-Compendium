@@ -1,0 +1,49 @@
+<section class="panel narrow">
+  <h1>Games</h1>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button class="button" type="submit">Create Game</button>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>Existing Games</h2>
+  {% if games %}
+    <ul class="game-list">
+      {% for game in games %}
+        <li class="game-row">
+          <a href="{% url 'games:detail' game.pk %}" hx-get="{% url 'games:detail' game.pk %}" hx-target="#main-content" hx-push-url="true">{{ game.title }}</a>
+          <span class="muted">created by {{ game.created_by.username }}</span>
+          <button class="button danger" type="button" onclick="openDeleteModal('delete-game-{{ game.pk }}')">Delete</button>
+
+          <div id="delete-game-{{ game.pk }}" class="modal hidden" onclick="if(event.target === this) closeDeleteModal('delete-game-{{ game.pk }}')">
+            <div class="modal-content modal-small">
+              <h3>Delete {{ game.title }}?</h3>
+              <p>This action cannot be undone.</p>
+              <form method="post" action="{% url 'games:delete' game.pk %}">
+                {% csrf_token %}
+                <button class="button danger" type="submit">Confirm Delete</button>
+                <button class="button ghost" type="button" onclick="closeDeleteModal('delete-game-{{ game.pk }}')">Cancel</button>
+              </form>
+            </div>
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>No games yet.</p>
+  {% endif %}
+</section>
+
+<script>
+  function openDeleteModal(id) {
+    const node = document.getElementById(id);
+    if (node) node.classList.remove("hidden");
+  }
+
+  function closeDeleteModal(id) {
+    const node = document.getElementById(id);
+    if (node) node.classList.add("hidden");
+  }
+</script>

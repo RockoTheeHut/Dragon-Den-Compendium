@@ -1,0 +1,19 @@
+{% if objects %}
+  <ul class="search-preview-list">
+    {% for object in objects %}
+      <li>
+        <a href="{% url 'compendium:object_detail' object.pk %}" hx-get="{% url 'compendium:object_detail' object.pk %}" hx-target="#main-content" hx-push-url="true">
+          <strong>{{ object.name }}</strong>
+          <span class="muted">{{ object.object_type }}</span>
+          <span>
+            {% for tag in object.tags.all|slice:":3" %}
+              <span class="tag-pill" style="background-color: {{ tag.color }}">{{ tag.name }}</span>
+            {% endfor %}
+          </span>
+        </a>
+      </li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <div class="muted">No matches</div>
+{% endif %}

@@ -1,0 +1,21 @@
+<section class="panel">
+  <h1>Dungeon Master Assistant</h1>
+  <p>Use the sidebar to manage your compendium, games, notes, and utilities.</p>
+</section>
+
+<section class="panel">
+  <h2>Your Recent Games</h2>
+  {% if recent_games %}
+    <ul>
+      {% for game in recent_games %}
+        <li>
+          <a href="{% url 'games:detail' game.pk %}" hx-get="{% url 'games:detail' game.pk %}" hx-target="#main-content" hx-push-url="true">
+            {{ game.title }}
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>No games yet. Create one from the Games section.</p>
+  {% endif %}
+</section>

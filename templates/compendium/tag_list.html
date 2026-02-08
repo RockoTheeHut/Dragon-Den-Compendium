@@ -1,0 +1,59 @@
+<section class="panel narrow">
+  <h1>Tag Management</h1>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button class="button" type="submit">Create Tag</button>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>Existing Tags</h2>
+  {% if tags %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Color</th>
+            <th>System</th>
+            <th>Type</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for tag in tags %}
+            <tr>
+              <td>{{ tag.name }}</td>
+              <td><span class="tag-pill" style="background-color: {{ tag.color }}">{{ tag.color }}</span></td>
+              <td>{{ tag.system }}</td>
+              <td>{% if tag.is_system_tag %}System{% else %}User{% endif %}</td>
+              <td>
+                <details>
+                  <summary>Edit</summary>
+                  <form method="post" action="{% url 'compendium:tag_update' tag.pk %}">
+                    {% csrf_token %}
+                    <input type="text" name="name" value="{{ tag.name }}" required>
+                    <input type="text" name="color" value="{{ tag.color }}" required>
+                    <input type="text" name="system" value="{{ tag.system }}" required>
+                    <label>
+                      <input type="checkbox" name="is_system_tag" {% if tag.is_system_tag %}checked{% endif %}>
+                      System tag
+                    </label>
+                    <button class="button" type="submit">Save</button>
+                  </form>
+                </details>
+                <form method="post" action="{% url 'compendium:tag_remove' tag.pk %}">
+                  {% csrf_token %}
+                  <button class="button danger" type="submit">Delete</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p>No tags created yet.</p>
+  {% endif %}
+</section>

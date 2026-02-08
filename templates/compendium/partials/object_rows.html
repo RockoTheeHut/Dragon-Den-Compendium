@@ -1,0 +1,37 @@
+{% for object in objects %}
+  <tr>
+    <td id="favorite-button-{{ object.id }}">
+      <form method="post" action="{% url 'compendium:toggle_favorite' object.pk %}" hx-post="{% url 'compendium:toggle_favorite' object.pk %}" hx-target="#favorite-button-{{ object.pk }}" hx-swap="innerHTML">
+        {% csrf_token %}
+        <button class="favorite-btn" type="submit" title="Toggle favorite">
+          {% if object.id in favorites %}⭐{% else %}☆{% endif %}
+        </button>
+      </form>
+    </td>
+    <td>
+      <a href="{% url 'compendium:object_detail' object.id %}" hx-get="{% url 'compendium:object_detail' object.id %}" hx-target="#main-content" hx-push-url="true">
+        {{ object.name }}
+      </a>
+    </td>
+    <td>{{ object.object_type }}</td>
+    <td>{{ object.system }}</td>
+    <td>{{ object.source }}</td>
+    <td>
+      {% for tag in object.tags.all %}
+        <span class="tag-pill" style="background-color: {{ tag.color }};">{{ tag.name }}</span>
+      {% empty %}
+        <span class="muted">No tags</span>
+      {% endfor %}
+    </td>
+  </tr>
+{% endfor %}
+
+{% if has_next %}
+  <tr
+    hx-get="{% url 'compendium:list' %}?{{ scroll_query }}&page={{ next_page_number }}&append=1"
+    hx-trigger="revealed"
+    hx-swap="outerHTML"
+  >
+    <td colspan="6" class="muted">Loading more objects...</td>
+  </tr>
+{% endif %}

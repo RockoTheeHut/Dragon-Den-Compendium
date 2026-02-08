@@ -1,0 +1,8 @@
+<section class="panel narrow">
+  <h1>Create Game Object</h1>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button class="button" type="submit">Create</button>
+  </form>
+</section>

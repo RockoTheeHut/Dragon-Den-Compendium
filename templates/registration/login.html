@@ -1,0 +1,15 @@
+{% extends "core/base.html" %}
+
+{% block body %}
+<main class="main-content centered">
+  <section class="panel auth-panel">
+    <h1>Login</h1>
+    <form method="post">
+      {% csrf_token %}
+      {{ form.as_p }}
+      <button class="button" type="submit">Login</button>
+    </form>
+    <p><a href="{% url 'core:signup' %}">Need an account? Sign up.</a></p>
+  </section>
+</main>
+{% endblock %}

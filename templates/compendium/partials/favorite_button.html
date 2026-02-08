@@ -1,0 +1,4 @@
+<form method="post" action="{% url 'compendium:toggle_favorite' game_object.pk %}" hx-post="{% url 'compendium:toggle_favorite' game_object.pk %}" hx-target="#favorite-button-{{ game_object.pk }}" hx-swap="innerHTML">
+  {% csrf_token %}
+  <button class="favorite-btn" type="submit" title="Toggle favorite">{% if is_favorite %}⭐{% else %}☆{% endif %}</button>
+</form>

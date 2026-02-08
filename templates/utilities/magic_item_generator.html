@@ -1,0 +1,45 @@
+<section class="panel narrow">
+  <h1>Magic Item Generator</h1>
+  {% if not openai_ready %}
+    <p class="warning">OpenAI is not configured. Set <code>OPENAI_API_KEY</code> and <code>OPENAI_DEFAULT_MODEL</code>.</p>
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button class="button" type="submit" {% if not openai_ready %}disabled{% endif %}>Generate</button>
+  </form>
+</section>
+
+{% if generated %}
+  <section class="panel">
+    <h2>Generated Result</h2>
+    <p><strong>Name:</strong> {{ generated.name }}</p>
+    <p><strong>Description:</strong> {{ generated.description }}</p>
+    <p><strong>Mechanics:</strong> {{ generated.mechanics }}</p>
+    <p>
+      <strong>Suggested Tags:</strong>
+      {% for tag in generated.suggested_tags %}
+        <span class="tag-pill">{{ tag }}</span>
+      {% empty %}
+        <span class="muted">No suggested tags</span>
+      {% endfor %}
+    </p>
+
+    <div class="grid-two">
+      <form method="post" action="{% url 'utilities:save_magic_item_global' %}">
+        {% csrf_token %}
+        <input type="hidden" name="generated_payload" value="{{ generated_json|escape }}">
+        <button class="button" type="submit">Save To Global Compendium</button>
+      </form>
+
+      <form method="post" action="{% url 'utilities:save_magic_item_game' %}">
+        {% csrf_token %}
+        <input type="hidden" name="generated_payload" value="{{ generated_json|escape }}">
+        {{ save_game_form.game.label_tag }}
+        {{ save_game_form.game }}
+        <button class="button" type="submit">Add Directly To Game</button>
+      </form>
+    </div>
+  </section>
+{% endif %}
