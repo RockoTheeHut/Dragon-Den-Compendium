@@ -15,3 +15,22 @@
     <p class="muted">No objects found in the compendium yet.</p>
   {% endif %}
 {% endif %}
+<div id="random-item-history-region" hx-swap-oob="innerHTML">
+  {% if recent_items %}
+    <div class="random-item-history">
+      <p class="muted"><strong>Recent Picks:</strong></p>
+      <div class="random-item-history-list">
+        {% for history_item in recent_items %}
+          <div class="panel random-item-history-panel">
+            <a href="{% url 'compendium:object_detail' history_item.pk %}" hx-get="{% url 'compendium:object_detail' history_item.pk %}" hx-target="#main-content" hx-push-url="true">
+              {{ history_item.name }}
+            </a>
+            <p class="muted">
+              Type: {{ history_item.object_type }} | System: {{ history_item.system }} | Source: {{ history_item.source }}
+            </p>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  {% endif %}
+</div>

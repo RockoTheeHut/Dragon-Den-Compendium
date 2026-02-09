@@ -1,0 +1,37 @@
+<div class="tracker-modal-content">
+  <h3>{{ entry.name }}</h3>
+  <div class="tracker-status-stack">
+    {% for effect in entry.status_effects.all %}
+      <div class="tracker-status-row">
+        <span class="tracker-effect-chip {% if not effect.is_running %}is-paused{% endif %}">{{ effect.name }} • {{ effect.remaining_rounds }}/{{ effect.duration_rounds }}</span>
+        <div class="tracker-actions">
+          <form method="post" action="{% url 'tracker:play_status_effect' effect.id %}" hx-post="{% url 'tracker:play_status_effect' effect.id %}" hx-target="#tracker-list-region" hx-swap="outerHTML" hx-on::after-request="if(event.detail.successful){ closeTrackerModal('tracker-status-modal'); }">
+            {% csrf_token %}
+            <button class="button small ghost" type="submit">Play</button>
+          </form>
+          <form method="post" action="{% url 'tracker:pause_status_effect' effect.id %}" hx-post="{% url 'tracker:pause_status_effect' effect.id %}" hx-target="#tracker-list-region" hx-swap="outerHTML" hx-on::after-request="if(event.detail.successful){ closeTrackerModal('tracker-status-modal'); }">
+            {% csrf_token %}
+            <button class="button small ghost" type="submit">Pause</button>
+          </form>
+          <form method="post" action="{% url 'tracker:reset_status_effect' effect.id %}" hx-post="{% url 'tracker:reset_status_effect' effect.id %}" hx-target="#tracker-list-region" hx-swap="outerHTML" hx-on::after-request="if(event.detail.successful){ closeTrackerModal('tracker-status-modal'); }">
+            {% csrf_token %}
+            <button class="button small ghost" type="submit">Reset</button>
+          </form>
+          <form method="post" action="{% url 'tracker:remove_status_effect' effect.id %}" hx-post="{% url 'tracker:remove_status_effect' effect.id %}" hx-target="#tracker-list-region" hx-swap="outerHTML" hx-on::after-request="if(event.detail.successful){ closeTrackerModal('tracker-status-modal'); }">
+            {% csrf_token %}
+            <button class="button small danger" type="submit">Remove</button>
+          </form>
+        </div>
+      </div>
+    {% empty %}
+      <p class="muted">No status effects yet.</p>
+    {% endfor %}
+  </div>
+
+  <form method="post" action="{% url 'tracker:add_status_effect' entry.id %}" hx-post="{% url 'tracker:add_status_effect' entry.id %}" hx-target="#tracker-list-region" hx-swap="outerHTML" hx-on::after-request="if(event.detail.successful){ closeTrackerModal('tracker-status-modal'); }" class="tracker-inline-form">
+    {% csrf_token %}
+    <input type="text" name="status_effect_name" placeholder="Effect name" required>
+    <input type="number" name="status_effect_rounds" min="1" value="1" required>
+    <button class="button" type="submit">Add Effect</button>
+  </form>
+</div>

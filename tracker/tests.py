@@ -157,3 +157,67 @@ class TurnTrackerTests(TestCase):
         entry = TurnTrackerEntry.objects.get(user=self.user, name="Alchemist")
         self.assertEqual(entry.source_kind, TurnTrackerEntry.SourceKind.GAME_INSTANCE)
         self.assertEqual(entry.source_snapshot.get("healing"), "2d4+2")
+
+    def test_dashboard_is_list_first_and_has_add_entry_button(self):
+        response = self.client.get(reverse("tracker:dashboard"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Add Entry")
+        self.assertContains(response, "Initiative")
+        self.assertContains(response, "Search Monster")
+        self.assertNotContains(response, "Create NPC / Enemy From Compendium Monster")
+
+    def test_edit_entry_modal_endpoint_returns_modal_content(self):
+        entry = TurnTrackerEntry.objects.create(
+            user=self.user,
+            name="Scout",
+            entry_type=TurnTrackerEntry.EntryType.NPC,
+            sort_order=0,
+        )
+        response = self.client.get(reverse("tracker:edit_entry_modal", args=[entry.id]), HTTP_HX_REQUEST="true")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Save Changes")
+        self.assertContains(response, "Scout")
+
+    def test_quick_update_entry_updates_initiative(self):
+        entry = TurnTrackerEntry.objects.create(
+            user=self.user,
+            name="Rogue",
+            entry_type=TurnTrackerEntry.EntryType.PLAYER,
+            initiative=12,
+            sort_order=0,
+        )
+
+        response = self.client.post(
+            reverse("tracker:quick_update_entry", args=[entry.id]),
+            data={"initiative": "19"},
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        entry.refresh_from_db()
+        self.assertEqual(entry.initiative, 19)
+
+    def test_previous_turn_cycles_backwards(self):
+        first = TurnTrackerEntry.objects.create(
+            user=self.user,
+            name="Alpha",
+            entry_type=TurnTrackerEntry.EntryType.PLAYER,
+            is_active=True,
+            sort_order=0,
+        )
+        second = TurnTrackerEntry.objects.create(
+            user=self.user,
+            name="Beta",
+            entry_type=TurnTrackerEntry.EntryType.ENEMY,
+            is_active=True,
+            is_current=True,
+            sort_order=1,
+        )
+
+        response = self.client.post(reverse("tracker:previous_turn"), HTTP_HX_REQUEST="true")
+
+        self.assertEqual(response.status_code, 200)
+        first.refresh_from_db()
+        second.refresh_from_db()
+        self.assertTrue(first.is_current)
+        self.assertFalse(second.is_current)

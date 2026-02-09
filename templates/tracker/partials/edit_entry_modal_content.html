@@ -1,0 +1,18 @@
+<div class="tracker-modal-content">
+  <form method="post" action="{% url 'tracker:edit_entry' entry.id %}" hx-post="{% url 'tracker:edit_entry' entry.id %}" hx-target="#tracker-list-region" hx-swap="outerHTML" hx-on::after-request="if(event.detail.successful){ closeTrackerModal('tracker-edit-modal'); }" class="tracker-entry-form" data-entry-type-toggle="1">
+    {% csrf_token %}
+    <div class="tracker-form-grid">
+      <label>Name {{ form.name }}</label>
+      <label>Type <span data-entry-type-select-wrap="1">{{ form.entry_type }}</span></label>
+      <label>Initiative {{ form.initiative }}</label>
+      <label class="tracker-inline-check">Active {{ form.is_active }}</label>
+      <label data-non-player-only="1">HP Current {{ form.hp_current }}</label>
+      <label data-non-player-only="1">HP Max {{ form.hp_max }}</label>
+      <label data-non-player-only="1">Items {{ form.items_text }}</label>
+      <label class="tracker-form-span">Notes {{ form.notes }}</label>
+    </div>
+    <div class="tracker-modal-actions">
+      <button class="button" type="submit">Save Changes</button>
+    </div>
+  </form>
+</div>

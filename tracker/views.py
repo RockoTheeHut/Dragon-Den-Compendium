@@ -1,16 +1,16 @@
 import re
 
-from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import F, Max
-from django.shortcuts import get_object_or_404, redirect, render
-from django.views.decorators.http import require_POST
+from django.http import HttpResponseBadRequest
+from django.shortcuts import get_object_or_404, render
+from django.views.decorators.http import require_GET, require_POST
 
 from compendium.models import GameObject
 from core.rendering import render_page
 from games.models import GameObjectInstance
 
-from .forms import AddFromCompendiumForm, AddFromGameInstanceForm, StatusEffectForm, TurnTrackerEntryForm
+from .forms import AddFromCompendiumForm, AddFromGameInstanceForm, TurnTrackerEntryForm
 from .models import StatusEffect, TurnTrackerEntry
 
 
@@ -60,23 +60,30 @@ def _entry_queryset(user):
     return TurnTrackerEntry.objects.filter(user=user).prefetch_related("status_effects").order_by("sort_order", "id")
 
 
-def _build_context(user, **overrides):
-    context = {
-        "entries": _entry_queryset(user),
+def _list_context(user):
+    entries = _entry_queryset(user)
+    return {
+        "entries": entries,
+        "entry_type_choices": TurnTrackerEntry.EntryType.choices,
+        "has_entries": entries.exists(),
+    }
+
+
+def _add_forms_context():
+    return {
         "manual_form": TurnTrackerEntryForm(initial={"entry_type": TurnTrackerEntry.EntryType.PLAYER, "is_active": True}),
         "from_compendium_form": AddFromCompendiumForm(initial={"entry_type": TurnTrackerEntry.EntryType.ENEMY, "is_active": True}),
         "from_instance_form": AddFromGameInstanceForm(initial={"entry_type": TurnTrackerEntry.EntryType.ENEMY, "is_active": True}),
-        "entry_type_choices": TurnTrackerEntry.EntryType.choices,
     }
-    context.update(overrides)
-    return context
 
 
-def _render_tracker(request, status=200, **overrides):
-    context = _build_context(request.user, **overrides)
+def _render_list_region(request, status=200):
     if request.headers.get("HX-Request"):
-        return render(request, "tracker/partials/tracker_content.html", context=context, status=status)
-    return render_page(request, "tracker/dashboard.html", context=context)
+        return render(request, "tracker/partials/list_region.html", _list_context(request.user), status=status)
+    context = {}
+    context.update(_list_context(request.user))
+    context.update(_add_forms_context())
+    return render_page(request, "tracker/dashboard.html", context)
 
 
 def _normalize_sort_order(user):
@@ -87,9 +94,35 @@ def _normalize_sort_order(user):
             entry.save(update_fields=["sort_order"])
 
 
+def _create_status_effect_from_post(entry, post_data):
+    name = (post_data.get("status_effect_name") or post_data.get("name") or "").strip()
+    if not name:
+        return
+
+    rounds_raw = (post_data.get("status_effect_rounds") or post_data.get("duration_rounds") or "").strip()
+    try:
+        duration = int(rounds_raw) if rounds_raw else 1
+    except ValueError:
+        duration = 1
+    duration = max(duration, 1)
+
+    max_sort = entry.status_effects.aggregate(max_sort=Max("sort_order")).get("max_sort")
+    StatusEffect.objects.create(
+        entry=entry,
+        name=name,
+        duration_rounds=duration,
+        remaining_rounds=duration,
+        is_running=True,
+        sort_order=(max_sort + 1) if max_sort is not None else 0,
+    )
+
+
 @login_required
 def dashboard(request):
-    return _render_tracker(request)
+    context = {}
+    context.update(_list_context(request.user))
+    context.update(_add_forms_context())
+    return render_page(request, "tracker/dashboard.html", context)
 
 
 @login_required
@@ -103,11 +136,10 @@ def add_entry(request):
         entry.sort_order = (max_sort + 1) if max_sort is not None else 0
         entry.source_kind = TurnTrackerEntry.SourceKind.MANUAL
         entry.save()
-        messages.success(request, "Tracker entry added.")
-        return _render_tracker(request)
+        _create_status_effect_from_post(entry, request.POST)
+        return _render_list_region(request)
 
-    messages.error(request, "Could not add tracker entry.")
-    return _render_tracker(request, status=400, manual_form=form)
+    return _render_list_region(request, status=400)
 
 
 @login_required
@@ -133,11 +165,10 @@ def add_from_compendium(request):
             source_snapshot=source.data,
             sort_order=(max_sort + 1) if max_sort is not None else 0,
         )
-        messages.success(request, f"Added {entry.entry_type} from monster '{source.name}'.")
-        return _render_tracker(request)
+        _create_status_effect_from_post(entry, request.POST)
+        return _render_list_region(request)
 
-    messages.error(request, "Could not create entry from monster.")
-    return _render_tracker(request, status=400, from_compendium_form=form)
+    return _render_list_region(request, status=400)
 
 
 @login_required
@@ -163,11 +194,70 @@ def add_from_game_instance(request):
             source_snapshot=source.data,
             sort_order=(max_sort + 1) if max_sort is not None else 0,
         )
-        messages.success(request, f"Added {entry.entry_type} from game object '{source.name}'.")
-        return _render_tracker(request)
+        _create_status_effect_from_post(entry, request.POST)
+        return _render_list_region(request)
 
-    messages.error(request, "Could not create entry from game object instance.")
-    return _render_tracker(request, status=400, from_instance_form=form)
+    return _render_list_region(request, status=400)
+
+
+@login_required
+@require_GET
+def edit_entry_modal(request, entry_id):
+    entry = get_object_or_404(TurnTrackerEntry, pk=entry_id, user=request.user)
+    form = TurnTrackerEntryForm(instance=entry)
+    return render(request, "tracker/partials/edit_entry_modal_content.html", {"entry": entry, "form": form})
+
+
+@login_required
+@require_POST
+def edit_entry(request, entry_id):
+    entry = get_object_or_404(TurnTrackerEntry, pk=entry_id, user=request.user)
+    form = TurnTrackerEntryForm(request.POST, instance=entry)
+    if form.is_valid():
+        form.save()
+        return _render_list_region(request)
+    return _render_list_region(request, status=400)
+
+
+@login_required
+@require_POST
+def quick_update_entry(request, entry_id):
+    entry = get_object_or_404(TurnTrackerEntry, pk=entry_id, user=request.user)
+    updated_fields = []
+
+    if "initiative" in request.POST:
+        raw = (request.POST.get("initiative") or "").strip()
+        if raw == "":
+            entry.initiative = None
+        else:
+            try:
+                entry.initiative = int(raw)
+            except ValueError:
+                return HttpResponseBadRequest("Initiative must be an integer.")
+        updated_fields.append("initiative")
+
+    if "hp_current" in request.POST and entry.entry_type != TurnTrackerEntry.EntryType.PLAYER:
+        raw = (request.POST.get("hp_current") or "").strip()
+        if raw == "":
+            entry.hp_current = None
+        else:
+            try:
+                entry.hp_current = int(raw)
+            except ValueError:
+                return HttpResponseBadRequest("HP must be an integer.")
+        updated_fields.append("hp_current")
+
+    if "is_active" in request.POST:
+        entry.is_active = request.POST.get("is_active") in {"1", "true", "True", "on"}
+        updated_fields.append("is_active")
+        if not entry.is_active and entry.is_current:
+            entry.is_current = False
+            updated_fields.append("is_current")
+
+    if updated_fields:
+        entry.save(update_fields=list(dict.fromkeys(updated_fields)))
+
+    return _render_list_region(request)
 
 
 @login_required
@@ -176,8 +266,7 @@ def remove_entry(request, entry_id):
     entry = get_object_or_404(TurnTrackerEntry, pk=entry_id, user=request.user)
     entry.delete()
     _normalize_sort_order(request.user)
-    messages.success(request, "Tracker entry removed.")
-    return _render_tracker(request)
+    return _render_list_region(request)
 
 
 @login_required
@@ -190,7 +279,7 @@ def toggle_active(request, entry_id):
         entry.save(update_fields=["is_active", "is_current"])
     else:
         entry.save(update_fields=["is_active"])
-    return _render_tracker(request)
+    return _render_list_region(request)
 
 
 @login_required
@@ -200,7 +289,7 @@ def set_current(request, entry_id):
     TurnTrackerEntry.objects.filter(user=request.user, is_current=True).update(is_current=False)
     entry.is_current = True
     entry.save(update_fields=["is_current"])
-    return _render_tracker(request)
+    return _render_list_region(request)
 
 
 @login_required
@@ -219,7 +308,7 @@ def reorder_entries(request):
             entry.save(update_fields=["sort_order"])
 
     _normalize_sort_order(request.user)
-    return _render_tracker(request)
+    return _render_list_region(request)
 
 
 @login_required
@@ -234,7 +323,7 @@ def move_up(request, entry_id):
             entry.save(update_fields=["sort_order"])
             prev_entry.save(update_fields=["sort_order"])
             break
-    return _render_tracker(request)
+    return _render_list_region(request)
 
 
 @login_required
@@ -249,7 +338,7 @@ def move_down(request, entry_id):
             entry.save(update_fields=["sort_order"])
             next_entry.save(update_fields=["sort_order"])
             break
-    return _render_tracker(request)
+    return _render_list_region(request)
 
 
 @login_required
@@ -258,7 +347,7 @@ def advance_turn(request):
     active_entries = list(TurnTrackerEntry.objects.filter(user=request.user, is_active=True).order_by("sort_order", "id"))
     if not active_entries:
         TurnTrackerEntry.objects.filter(user=request.user, is_current=True).update(is_current=False)
-        return _render_tracker(request)
+        return _render_list_region(request)
 
     current_entry = TurnTrackerEntry.objects.filter(user=request.user, is_current=True).first()
     if current_entry not in active_entries:
@@ -274,17 +363,50 @@ def advance_turn(request):
     StatusEffect.objects.filter(entry__user=request.user, is_running=True, remaining_rounds__gt=0).update(
         remaining_rounds=F("remaining_rounds") - 1
     )
-    return _render_tracker(request)
+    return _render_list_region(request)
+
+
+@login_required
+@require_POST
+def previous_turn(request):
+    active_entries = list(TurnTrackerEntry.objects.filter(user=request.user, is_active=True).order_by("sort_order", "id"))
+    if not active_entries:
+        TurnTrackerEntry.objects.filter(user=request.user, is_current=True).update(is_current=False)
+        return _render_list_region(request)
+
+    current_entry = TurnTrackerEntry.objects.filter(user=request.user, is_current=True).first()
+    if current_entry not in active_entries:
+        prev_entry = active_entries[-1]
+    else:
+        prev_index = (active_entries.index(current_entry) - 1) % len(active_entries)
+        prev_entry = active_entries[prev_index]
+
+    TurnTrackerEntry.objects.filter(user=request.user, is_current=True).update(is_current=False)
+    prev_entry.is_current = True
+    prev_entry.save(update_fields=["is_current"])
+    return _render_list_region(request)
+
+
+@login_required
+@require_POST
+def clear_entries(request):
+    TurnTrackerEntry.objects.filter(user=request.user).delete()
+    return _render_list_region(request)
+
+
+@login_required
+@require_GET
+def entry_status_modal(request, entry_id):
+    entry = get_object_or_404(TurnTrackerEntry.objects.prefetch_related("status_effects"), pk=entry_id, user=request.user)
+    return render(request, "tracker/partials/status_modal_content.html", {"entry": entry})
 
 
 @login_required
 @require_POST
 def add_status_effect(request, entry_id):
     entry = get_object_or_404(TurnTrackerEntry, pk=entry_id, user=request.user)
-    form = StatusEffectForm(request.POST)
-    if form.is_valid():
-        form.save_for_entry(entry)
-    return _render_tracker(request)
+    _create_status_effect_from_post(entry, request.POST)
+    return _render_list_region(request)
 
 
 @login_required
@@ -293,7 +415,7 @@ def play_status_effect(request, effect_id):
     effect = get_object_or_404(StatusEffect, pk=effect_id, entry__user=request.user)
     effect.is_running = True
     effect.save(update_fields=["is_running"])
-    return _render_tracker(request)
+    return _render_list_region(request)
 
 
 @login_required
@@ -302,7 +424,7 @@ def pause_status_effect(request, effect_id):
     effect = get_object_or_404(StatusEffect, pk=effect_id, entry__user=request.user)
     effect.is_running = False
     effect.save(update_fields=["is_running"])
-    return _render_tracker(request)
+    return _render_list_region(request)
 
 
 @login_required
@@ -311,7 +433,7 @@ def reset_status_effect(request, effect_id):
     effect = get_object_or_404(StatusEffect, pk=effect_id, entry__user=request.user)
     effect.remaining_rounds = effect.duration_rounds
     effect.save(update_fields=["remaining_rounds"])
-    return _render_tracker(request)
+    return _render_list_region(request)
 
 
 @login_required
@@ -319,4 +441,4 @@ def reset_status_effect(request, effect_id):
 def remove_status_effect(request, effect_id):
     effect = get_object_or_404(StatusEffect, pk=effect_id, entry__user=request.user)
     effect.delete()
-    return _render_tracker(request)
+    return _render_list_region(request)

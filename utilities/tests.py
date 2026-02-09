@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
@@ -143,3 +145,60 @@ class RandomItemPickerTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "No objects found in the compendium yet.")
+
+    def test_random_item_picker_shows_recent_history(self):
+        self.client.force_login(self.user)
+        GameObject.objects.create(
+            system="dnd5e",
+            object_type=GameObject.ObjectType.ITEM,
+            name="Blade of Dawn",
+            source=GameObject.SourceType.CUSTOM,
+        )
+        GameObject.objects.create(
+            system="dnd5e",
+            object_type=GameObject.ObjectType.ITEM,
+            name="Cloak of Fog",
+            source=GameObject.SourceType.CUSTOM,
+        )
+
+        with patch("utilities.views.random.randint", side_effect=[0, 1]):
+            first_response = self.client.post(reverse("utilities:random_item_pick"), HTTP_HX_REQUEST="true")
+            second_response = self.client.post(reverse("utilities:random_item_pick"), HTTP_HX_REQUEST="true")
+
+        self.assertNotContains(first_response, "Recent Picks:")
+        self.assertNotContains(first_response, "Cloak of Fog")
+        self.assertContains(second_response, "Recent Picks:")
+        self.assertContains(second_response, "Blade of Dawn")
+        second_history_html = second_response.content.decode().split('<div id="random-item-history-region"', 1)[1]
+        self.assertNotIn("Cloak of Fog", second_history_html)
+
+    def test_random_item_picker_history_is_limited_to_last_two_items(self):
+        self.client.force_login(self.user)
+        GameObject.objects.create(
+            system="dnd5e",
+            object_type=GameObject.ObjectType.ITEM,
+            name="Charm of Ember",
+            source=GameObject.SourceType.CUSTOM,
+        )
+        GameObject.objects.create(
+            system="dnd5e",
+            object_type=GameObject.ObjectType.ITEM,
+            name="Lantern of Tides",
+            source=GameObject.SourceType.CUSTOM,
+        )
+        GameObject.objects.create(
+            system="dnd5e",
+            object_type=GameObject.ObjectType.ITEM,
+            name="Mask of Echoes",
+            source=GameObject.SourceType.CUSTOM,
+        )
+
+        with patch("utilities.views.random.randint", side_effect=[0, 1, 2]):
+            self.client.post(reverse("utilities:random_item_pick"), HTTP_HX_REQUEST="true")
+            self.client.post(reverse("utilities:random_item_pick"), HTTP_HX_REQUEST="true")
+            response = self.client.post(reverse("utilities:random_item_pick"), HTTP_HX_REQUEST="true")
+
+        self.assertContains(response, "Lantern of Tides")
+        self.assertContains(response, "Charm of Ember")
+        history_html = response.content.decode().split('<div id="random-item-history-region"', 1)[1]
+        self.assertNotIn("Mask of Echoes", history_html)

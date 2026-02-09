@@ -1,3 +1,38 @@
-<section id="tracker-content">
-  {% include "tracker/partials/tracker_content.html" %}
+<section class="panel tracker-page">
+  <div class="tracker-page-header">
+    <h1>Turn Tracker</h1>
+    <p class="muted">Initiative first. Add and edit from focused modals.</p>
+  </div>
+
+  {% include "tracker/partials/list_region.html" %}
 </section>
+
+<div id="tracker-add-modal" class="modal tracker-modal hidden" onclick="if(event.target === this) closeTrackerModal('tracker-add-modal')">
+  <div class="modal-content modal-tool">
+    <div class="modal-header">
+      <h2>Add Entry</h2>
+      <button class="button ghost" type="button" onclick="closeTrackerModal('tracker-add-modal')">Close</button>
+    </div>
+    {% include "tracker/partials/add_entry_modal_content.html" %}
+  </div>
+</div>
+
+<div id="tracker-edit-modal" class="modal tracker-modal hidden" onclick="if(event.target === this) closeTrackerModal('tracker-edit-modal')">
+  <div class="modal-content modal-tool">
+    <div class="modal-header">
+      <h2>Edit Entry</h2>
+      <button class="button ghost" type="button" onclick="closeTrackerModal('tracker-edit-modal')">Close</button>
+    </div>
+    <div id="tracker-edit-modal-content" class="tracker-modal-content muted">Choose an entry to edit.</div>
+  </div>
+</div>
+
+<div id="tracker-status-modal" class="modal tracker-modal hidden" onclick="if(event.target === this) closeTrackerModal('tracker-status-modal')">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>Status Effects</h2>
+      <button class="button ghost" type="button" onclick="closeTrackerModal('tracker-status-modal')">Close</button>
+    </div>
+    <div id="tracker-status-modal-content" class="tracker-modal-content muted">Choose an effect chip to manage statuses.</div>
+  </div>
+</div>

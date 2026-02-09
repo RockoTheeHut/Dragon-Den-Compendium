@@ -193,6 +193,18 @@
       animation.classList.remove("is-rolling");
     }
 
+    function showRandomItemPicking() {
+      const result = document.getElementById("random-item-result");
+      if (!result) return;
+      result.classList.add("is-picking");
+    }
+
+    function hideRandomItemPicking() {
+      const result = document.getElementById("random-item-result");
+      if (!result) return;
+      result.classList.remove("is-picking");
+    }
+
     function wireDiceTool() {
       const form = document.getElementById("dice-tool-form");
       if (!form || form.dataset.bound === "1") return;
@@ -261,6 +273,20 @@
       });
     }
 
+    function wireRandomItemTool() {
+      const form = document.getElementById("random-item-form");
+      if (!form || form.dataset.bound === "1") return;
+      form.dataset.bound = "1";
+
+      form.addEventListener("htmx:beforeRequest", function () {
+        showRandomItemPicking();
+      });
+
+      form.addEventListener("htmx:afterRequest", function () {
+        hideRandomItemPicking();
+      });
+    }
+
     function openDiceModal() {
       const modal = document.getElementById("dice-modal");
       if (!modal) return;
@@ -285,6 +311,7 @@
     function closeRandomItemModal() {
       const modal = document.getElementById("random-item-modal");
       if (!modal) return;
+      hideRandomItemPicking();
       modal.classList.add("hidden");
     }
 
@@ -302,7 +329,19 @@
           event.target.classList.remove("dice-result-pop");
         }, 350);
       }
+      if (event.target && event.target.id === "random-item-modal-content") {
+        wireRandomItemTool();
+      }
+      if (event.target && event.target.id === "random-item-result") {
+        hideRandomItemPicking();
+        event.target.classList.add("random-item-result-pop");
+        setTimeout(function () {
+          event.target.classList.remove("random-item-result-pop");
+        }, 350);
+      }
     });
+
+    wireRandomItemTool();
   </script>
 </body>
 </html>

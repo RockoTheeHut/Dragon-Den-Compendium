@@ -16,6 +16,31 @@ from games.models import GameObjectInstance
 from .forms import ALLOWED_DICE_SIDES, DiceToolForm, MagicItemGeneratorForm, MagicItemSaveGameForm, MagicItemSaveGlobalForm
 
 
+RANDOM_ITEM_HISTORY_SESSION_KEY = "random_item_picker_history_ids"
+
+
+def _load_random_item_history_ids(request):
+    raw_values = request.session.get(RANDOM_ITEM_HISTORY_SESSION_KEY, [])
+    if not isinstance(raw_values, list):
+        return []
+
+    history_ids = []
+    for value in raw_values:
+        try:
+            item_id = int(value)
+        except (TypeError, ValueError):
+            continue
+        if item_id > 0:
+            history_ids.append(item_id)
+    return history_ids
+
+
+def _resolve_random_item_history(history_ids):
+    history_items = GameObject.objects.filter(pk__in=history_ids)
+    items_by_id = {item.pk: item for item in history_items}
+    return [items_by_id[item_id] for item_id in history_ids if item_id in items_by_id]
+
+
 def _is_openai_ready():
     return bool(settings.OPENAI_API_KEY and settings.OPENAI_DEFAULT_MODEL)
 
@@ -207,18 +232,33 @@ def random_item_pick(request):
     items = items.order_by("id")
     item_count = items.count()
     if item_count == 0:
+        recent_items = _resolve_random_item_history(_load_random_item_history_ids(request))
         return render(
             request,
             "utilities/partials/random_item_result.html",
-            {"random_item": None, "selected_object_type": selected_object_type},
+            {
+                "random_item": None,
+                "selected_object_type": selected_object_type,
+                "recent_items": recent_items,
+            },
         )
 
     random_index = random.randint(0, item_count - 1)
     random_item = items[random_index]
+    history_ids = _load_random_item_history_ids(request)
+    recent_items = _resolve_random_item_history(history_ids[:2])
+    history_ids.insert(0, random_item.pk)
+    history_ids = history_ids[:2]
+    request.session[RANDOM_ITEM_HISTORY_SESSION_KEY] = history_ids
+
     return render(
         request,
         "utilities/partials/random_item_result.html",
-        {"random_item": random_item, "selected_object_type": selected_object_type},
+        {
+            "random_item": random_item,
+            "selected_object_type": selected_object_type,
+            "recent_items": recent_items,
+        },
     )
 
 

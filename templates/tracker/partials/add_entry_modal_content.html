@@ -1,0 +1,75 @@
+<div class="tracker-modal-content">
+  <div class="tracker-tabs" data-tracker-tabs="1">
+    <div class="tracker-tab-buttons" role="tablist" aria-label="Add entry source">
+      <button type="button" class="tracker-tab-button is-active" data-tracker-tab-target="tracker-tab-quick">Quick Add</button>
+      <button type="button" class="tracker-tab-button" data-tracker-tab-target="tracker-tab-compendium">From Monster/Compendium</button>
+      <button type="button" class="tracker-tab-button" data-tracker-tab-target="tracker-tab-instance">From Game Object Instance</button>
+    </div>
+
+    <section id="tracker-tab-quick" class="tracker-tab-panel">
+      <form method="post" action="{% url 'tracker:add_entry' %}" hx-post="{% url 'tracker:add_entry' %}" hx-target="#tracker-list-region" hx-swap="outerHTML" hx-on::after-request="if(event.detail.successful){ closeTrackerModal('tracker-add-modal'); }" class="tracker-entry-form" data-entry-type-toggle="1">
+        {% csrf_token %}
+        <div class="tracker-form-grid">
+          <label>Name {{ manual_form.name }}</label>
+          <label>Type <span data-entry-type-select-wrap="1">{{ manual_form.entry_type }}</span></label>
+          <label>Initiative {{ manual_form.initiative }}</label>
+          <label class="tracker-inline-check">Active {{ manual_form.is_active }}</label>
+          <label data-non-player-only="1">HP Current {{ manual_form.hp_current }}</label>
+          <label data-non-player-only="1">HP Max {{ manual_form.hp_max }}</label>
+          <label data-non-player-only="1">Items {{ manual_form.items_text }}</label>
+          <label class="tracker-form-span">Notes {{ manual_form.notes }}</label>
+          <label>Status Effect Name <input type="text" name="status_effect_name" placeholder="Optional"></label>
+          <label>Status Rounds <input type="number" min="1" name="status_effect_rounds" value="1"></label>
+        </div>
+        <div class="tracker-modal-actions">
+          <button class="button" type="submit">Add Entry</button>
+        </div>
+      </form>
+    </section>
+
+    <section id="tracker-tab-compendium" class="tracker-tab-panel hidden">
+      <form method="post" action="{% url 'tracker:add_from_compendium' %}" hx-post="{% url 'tracker:add_from_compendium' %}" hx-target="#tracker-list-region" hx-swap="outerHTML" hx-on::after-request="if(event.detail.successful){ closeTrackerModal('tracker-add-modal'); }" class="tracker-entry-form">
+        {% csrf_token %}
+        <div class="tracker-form-grid">
+          <label class="tracker-form-span">Search Monster <input type="search" class="tracker-search-input" placeholder="Type to filter monsters..." data-filter-select="{{ from_compendium_form.source.id_for_label }}"></label>
+          <label class="tracker-form-span">Monster {{ from_compendium_form.source }}</label>
+          <label>Entry Type {{ from_compendium_form.entry_type }}</label>
+          <label>Name Override {{ from_compendium_form.name }}</label>
+          <label>Initiative {{ from_compendium_form.initiative }}</label>
+          <label class="tracker-inline-check">Active {{ from_compendium_form.is_active }}</label>
+          <label>HP Current {{ from_compendium_form.hp_current }}</label>
+          <label>HP Max {{ from_compendium_form.hp_max }}</label>
+          <label>Items {{ from_compendium_form.items_text }}</label>
+          <label class="tracker-form-span">Notes {{ from_compendium_form.notes }}</label>
+          <label>Status Effect Name <input type="text" name="status_effect_name" placeholder="Optional"></label>
+          <label>Status Rounds <input type="number" min="1" name="status_effect_rounds" value="1"></label>
+        </div>
+        <div class="tracker-modal-actions">
+          <button class="button" type="submit">Add From Monster</button>
+        </div>
+      </form>
+    </section>
+
+    <section id="tracker-tab-instance" class="tracker-tab-panel hidden">
+      <form method="post" action="{% url 'tracker:add_from_instance' %}" hx-post="{% url 'tracker:add_from_instance' %}" hx-target="#tracker-list-region" hx-swap="outerHTML" hx-on::after-request="if(event.detail.successful){ closeTrackerModal('tracker-add-modal'); }" class="tracker-entry-form">
+        {% csrf_token %}
+        <div class="tracker-form-grid">
+          <label>Game Object {{ from_instance_form.source }}</label>
+          <label>Entry Type {{ from_instance_form.entry_type }}</label>
+          <label>Name Override {{ from_instance_form.name }}</label>
+          <label>Initiative {{ from_instance_form.initiative }}</label>
+          <label class="tracker-inline-check">Active {{ from_instance_form.is_active }}</label>
+          <label>HP Current {{ from_instance_form.hp_current }}</label>
+          <label>HP Max {{ from_instance_form.hp_max }}</label>
+          <label>Items {{ from_instance_form.items_text }}</label>
+          <label class="tracker-form-span">Notes {{ from_instance_form.notes }}</label>
+          <label>Status Effect Name <input type="text" name="status_effect_name" placeholder="Optional"></label>
+          <label>Status Rounds <input type="number" min="1" name="status_effect_rounds" value="1"></label>
+        </div>
+        <div class="tracker-modal-actions">
+          <button class="button" type="submit">Add From Instance</button>
+        </div>
+      </form>
+    </section>
+  </div>
+</div>
