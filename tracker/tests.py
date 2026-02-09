@@ -52,11 +52,91 @@ class TurnTrackerTests(TestCase):
         entry = TurnTrackerEntry.objects.get(user=self.user, name="Goblin")
         self.assertEqual(entry.source_kind, TurnTrackerEntry.SourceKind.COMPENDIUM_MONSTER)
         self.assertEqual(entry.source_snapshot.get("hp"), 7)
+        self.assertEqual(entry.source_snapshot.get("_source_object_id"), monster.pk)
 
         monster.data = {"hp": 30}
         monster.save(update_fields=["data"])
         entry.refresh_from_db()
         self.assertEqual(entry.source_snapshot.get("hp"), 7)
+
+    def test_compendium_tracker_entry_name_opens_monster_modal(self):
+        monster = GameObject.objects.create(
+            system="dnd5e",
+            object_type=GameObject.ObjectType.MONSTER,
+            name="Dire Wolf",
+            source=GameObject.SourceType.CUSTOM,
+            data={"hp": 37},
+        )
+
+        response = self.client.post(
+            reverse("tracker:add_from_compendium"),
+            data={
+                "source": monster.pk,
+                "entry_type": TurnTrackerEntry.EntryType.ENEMY,
+                "name": "",
+                "initiative": 12,
+                "is_active": "on",
+                "notes": "",
+            },
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        entry = TurnTrackerEntry.objects.get(user=self.user, name="Dire Wolf")
+        self.assertContains(response, f"openTrackerMonsterModal({entry.id})")
+        self.assertContains(response, "class=\"tracker-entry-trigger\"")
+
+    def test_monster_modal_renders_stat_block_and_attacks(self):
+        monster = GameObject.objects.create(
+            system="dnd5e",
+            object_type=GameObject.ObjectType.MONSTER,
+            name="Skeleton Archer",
+            source=GameObject.SourceType.CUSTOM,
+            data={
+                "size": "Medium",
+                "type": "undead",
+                "alignment": "lawful evil",
+                "ac": "13 (armor scraps)",
+                "hp": "13 (2d8+4)",
+                "speed": "30 ft.",
+                "str": "10",
+                "dex": "14",
+                "con": "15",
+                "int": "6",
+                "wis": "8",
+                "cha": "5",
+                "cr": "1/4",
+                "action": [
+                    {"name": "Shortsword", "text": "Melee Weapon Attack: +4 to hit, reach 5 ft., one target."},
+                    {"name": "Shortbow", "text": "Ranged Weapon Attack: +4 to hit, range 80/320 ft., one target."},
+                ],
+            },
+        )
+        self.client.post(
+            reverse("tracker:add_from_compendium"),
+            data={
+                "source": monster.pk,
+                "entry_type": TurnTrackerEntry.EntryType.ENEMY,
+                "name": "",
+                "initiative": 10,
+                "is_active": "on",
+                "notes": "",
+            },
+            HTTP_HX_REQUEST="true",
+        )
+        entry = TurnTrackerEntry.objects.get(user=self.user, name="Skeleton Archer")
+
+        response = self.client.get(
+            reverse("tracker:entry_monster_modal", args=[entry.id]),
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Armor Class:")
+        self.assertContains(response, "Hit Points:")
+        self.assertContains(response, "Attacks")
+        self.assertContains(response, "Shortsword")
+        self.assertContains(response, "Shortbow")
 
     def test_advance_turn_decrements_only_running_status_effects(self):
         first = TurnTrackerEntry.objects.create(

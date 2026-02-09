@@ -1,4 +1,35 @@
 (function () {
+  const SWAP_ANIMATION_CLASS = "swap-region-pop";
+  function animateSwapTarget(target) {
+    if (!target) return;
+    target.classList.remove(SWAP_ANIMATION_CLASS);
+    // Force restart when repeated swaps hit the same region.
+    target.getBoundingClientRect();
+    target.classList.add(SWAP_ANIMATION_CLASS);
+    if (target._swapAnimationTimer) {
+      clearTimeout(target._swapAnimationTimer);
+    }
+    target._swapAnimationTimer = setTimeout(function () {
+      target.classList.remove(SWAP_ANIMATION_CLASS);
+      target._swapAnimationTimer = null;
+    }, 260);
+  }
+
+  function isAnimatableSwapTarget(target) {
+    if (!target || !target.id) return false;
+    return [
+      "main-content",
+      "tracker-edit-modal-content",
+      "tracker-status-modal-content",
+      "tracker-monster-modal-content",
+      "compendium-preview-modal-content",
+      "notes-modal-content",
+      "dice-roll-result",
+      "random-item-result",
+      "random-item-history-region",
+    ].includes(target.id);
+  }
+
   function toggleSidebar() {
     const sidebar = document.getElementById("sidebar");
     if (!sidebar) return;
@@ -174,6 +205,40 @@
     window.htmx.ajax("GET", "/tracker/entries/" + entryId + "/status/modal/", "#tracker-status-modal-content");
   }
 
+  function openTrackerMonsterModal(entryId) {
+    const modal = document.getElementById("tracker-monster-modal");
+    const target = document.getElementById("tracker-monster-modal-content");
+    if (!modal || !target || !window.htmx) return;
+    if (typeof window.openAppModal === "function") {
+      window.openAppModal(modal);
+    } else {
+      modal.classList.remove("hidden");
+    }
+    window.htmx.ajax("GET", "/tracker/entries/" + entryId + "/monster/modal/", "#tracker-monster-modal-content");
+  }
+
+  function openCompendiumPreviewModal(objectId) {
+    const modal = document.getElementById("compendium-preview-modal");
+    const target = document.getElementById("compendium-preview-modal-content");
+    if (!modal || !target || !window.htmx) return;
+    if (typeof window.openAppModal === "function") {
+      window.openAppModal(modal);
+    } else {
+      modal.classList.remove("hidden");
+    }
+    window.htmx.ajax("GET", "/compendium/" + objectId + "/preview/modal/", "#compendium-preview-modal-content");
+  }
+
+  function closeCompendiumPreviewModal() {
+    const modal = document.getElementById("compendium-preview-modal");
+    if (!modal) return;
+    if (typeof window.closeAppModal === "function") {
+      window.closeAppModal(modal);
+      return;
+    }
+    modal.classList.add("hidden");
+  }
+
   function wireTrackerTabs() {
     const tabRoots = document.querySelectorAll("[data-tracker-tabs='1']");
     if (!tabRoots.length) return;
@@ -283,7 +348,10 @@
     wireFilterSelectInputs();
   });
 
-  document.body.addEventListener("htmx:afterSwap", function () {
+  document.body.addEventListener("htmx:afterSwap", function (event) {
+    if (event && isAnimatableSwapTarget(event.target)) {
+      animateSwapTarget(event.target);
+    }
     wireButtons();
     wireTurnSorting();
     wireGlobalSearch();
@@ -296,4 +364,7 @@
   window.closeTrackerModal = closeTrackerModal;
   window.openTrackerEditModal = openTrackerEditModal;
   window.openTrackerStatusModal = openTrackerStatusModal;
+  window.openTrackerMonsterModal = openTrackerMonsterModal;
+  window.openCompendiumPreviewModal = openCompendiumPreviewModal;
+  window.closeCompendiumPreviewModal = closeCompendiumPreviewModal;
 })();

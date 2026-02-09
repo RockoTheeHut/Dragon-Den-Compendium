@@ -60,12 +60,78 @@ def _entry_queryset(user):
     return TurnTrackerEntry.objects.filter(user=user).prefetch_related("status_effects").order_by("sort_order", "id")
 
 
+def _extract_snapshot_object_id(snapshot):
+    if not isinstance(snapshot, dict):
+        return None
+    raw_value = snapshot.get("_source_object_id")
+    try:
+        source_id = int(raw_value)
+    except (TypeError, ValueError):
+        return None
+    if source_id <= 0:
+        return None
+    return source_id
+
+
+def _resolve_compendium_object_for_entry(entry):
+    if entry.source_kind != TurnTrackerEntry.SourceKind.COMPENDIUM_MONSTER:
+        return None
+
+    source_id = _extract_snapshot_object_id(entry.source_snapshot)
+    if source_id is not None:
+        return GameObject.objects.filter(
+            pk=source_id,
+            object_type=GameObject.ObjectType.MONSTER,
+        ).first()
+
+    if entry.source_name:
+        return (
+            GameObject.objects.filter(
+                object_type=GameObject.ObjectType.MONSTER,
+                name=entry.source_name,
+            )
+            .order_by("id")
+            .first()
+        )
+    return None
+
+
+def _extract_attack_actions(monster_data):
+    raw_actions = monster_data.get("action")
+    if isinstance(raw_actions, dict):
+        action_items = [raw_actions]
+    elif isinstance(raw_actions, list):
+        action_items = [item for item in raw_actions if isinstance(item, dict)]
+    else:
+        action_items = []
+
+    normalized = []
+    for action in action_items:
+        name = str(action.get("name") or "").strip()
+        text = str(action.get("text") or "").strip()
+        attack_expr = str(action.get("attack") or "").strip()
+        if not text and attack_expr:
+            text = attack_expr
+        if not name:
+            name = "Attack"
+        normalized.append(
+            {
+                "name": name,
+                "text": text,
+                "is_attack": bool(attack_expr) or "attack:" in text.lower() or "weapon attack" in text.lower() or "spell attack" in text.lower(),
+            }
+        )
+
+    attacks_only = [item for item in normalized if item["is_attack"]]
+    return attacks_only if attacks_only else normalized
+
+
 def _list_context(user):
-    entries = _entry_queryset(user)
+    entries = list(_entry_queryset(user))
     return {
         "entries": entries,
         "entry_type_choices": TurnTrackerEntry.EntryType.choices,
-        "has_entries": entries.exists(),
+        "has_entries": bool(entries),
     }
 
 
@@ -149,6 +215,8 @@ def add_from_compendium(request):
     if form.is_valid():
         source = form.cleaned_data["source"]
         hp_current_default, hp_max_default = _extract_hp(source.data)
+        source_snapshot = dict(source.data) if isinstance(source.data, dict) else {}
+        source_snapshot["_source_object_id"] = source.pk
         max_sort = TurnTrackerEntry.objects.filter(user=request.user).aggregate(max_sort=Max("sort_order")).get("max_sort")
         entry = TurnTrackerEntry.objects.create(
             user=request.user,
@@ -162,7 +230,7 @@ def add_from_compendium(request):
             items_text=form.cleaned_data.get("items_text") or "",
             source_kind=TurnTrackerEntry.SourceKind.COMPENDIUM_MONSTER,
             source_name=source.name,
-            source_snapshot=source.data,
+            source_snapshot=source_snapshot,
             sort_order=(max_sort + 1) if max_sort is not None else 0,
         )
         _create_status_effect_from_post(entry, request.POST)
@@ -399,6 +467,43 @@ def clear_entries(request):
 def entry_status_modal(request, entry_id):
     entry = get_object_or_404(TurnTrackerEntry.objects.prefetch_related("status_effects"), pk=entry_id, user=request.user)
     return render(request, "tracker/partials/status_modal_content.html", {"entry": entry})
+
+
+@login_required
+@require_GET
+def entry_monster_modal(request, entry_id):
+    entry = get_object_or_404(TurnTrackerEntry, pk=entry_id, user=request.user)
+    if entry.source_kind != TurnTrackerEntry.SourceKind.COMPENDIUM_MONSTER:
+        return HttpResponseBadRequest("Monster stat block is only available for compendium monsters.")
+
+    source_data = entry.source_snapshot if isinstance(entry.source_snapshot, dict) else {}
+    if not source_data:
+        source_object = _resolve_compendium_object_for_entry(entry)
+        source_data = source_object.data if source_object and isinstance(source_object.data, dict) else {}
+
+    context = {
+        "entry": entry,
+        "monster_name": source_data.get("name") or entry.source_name or entry.name,
+        "size": source_data.get("size"),
+        "monster_type": source_data.get("type"),
+        "alignment": source_data.get("alignment"),
+        "armor_class": source_data.get("ac"),
+        "hit_points": source_data.get("hp"),
+        "speed": source_data.get("speed"),
+        "strength": source_data.get("str"),
+        "dexterity": source_data.get("dex"),
+        "constitution": source_data.get("con"),
+        "intelligence": source_data.get("int"),
+        "wisdom": source_data.get("wis"),
+        "charisma": source_data.get("cha"),
+        "skills": source_data.get("skill"),
+        "senses": source_data.get("senses"),
+        "passive": source_data.get("passive"),
+        "languages": source_data.get("languages"),
+        "challenge_rating": source_data.get("cr"),
+        "attacks": _extract_attack_actions(source_data),
+    }
+    return render(request, "tracker/partials/monster_modal_content.html", context)
 
 
 @login_required

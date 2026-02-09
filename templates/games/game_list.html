@@ -39,11 +39,21 @@
 <script>
   function openDeleteModal(id) {
     const node = document.getElementById(id);
-    if (node) node.classList.remove("hidden");
+    if (!node) return;
+    if (typeof window.openAppModal === "function") {
+      window.openAppModal(node);
+      return;
+    }
+    node.classList.remove("hidden");
   }
 
   function closeDeleteModal(id) {
     const node = document.getElementById(id);
-    if (node) node.classList.add("hidden");
+    if (!node) return;
+    if (typeof window.closeAppModal === "function") {
+      window.closeAppModal(node);
+      return;
+    }
+    node.classList.add("hidden");
   }
 </script>

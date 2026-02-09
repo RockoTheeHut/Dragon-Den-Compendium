@@ -22,6 +22,7 @@ urlpatterns = [
     path("previous-turn/", views.previous_turn, name="previous_turn"),
     path("clear/", views.clear_entries, name="clear_entries"),
     path("entries/<int:entry_id>/status/modal/", views.entry_status_modal, name="entry_status_modal"),
+    path("entries/<int:entry_id>/monster/modal/", views.entry_monster_modal, name="entry_monster_modal"),
     path("entries/<int:entry_id>/status/add/", views.add_status_effect, name="add_status_effect"),
     path("status/<int:effect_id>/play/", views.play_status_effect, name="play_status_effect"),
     path("status/<int:effect_id>/pause/", views.pause_status_effect, name="pause_status_effect"),

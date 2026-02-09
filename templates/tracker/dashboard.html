@@ -36,3 +36,13 @@
     <div id="tracker-status-modal-content" class="tracker-modal-content muted">Choose an effect chip to manage statuses.</div>
   </div>
 </div>
+
+<div id="tracker-monster-modal" class="modal tracker-modal hidden" onclick="if(event.target === this) closeTrackerModal('tracker-monster-modal')">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>Monster Stat Block</h2>
+      <button class="button ghost" type="button" onclick="closeTrackerModal('tracker-monster-modal')">Close</button>
+    </div>
+    <div id="tracker-monster-modal-content" class="tracker-modal-content muted">Choose a compendium monster entry.</div>
+  </div>
+</div>

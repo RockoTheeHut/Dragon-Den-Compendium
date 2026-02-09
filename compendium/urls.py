@@ -12,6 +12,7 @@ urlpatterns = [
     path("tags/<int:pk>/remove/", views.remove_tag, name="tag_remove"),
     path("search/preview/", views.search_preview, name="search_preview"),
     path("search/go/", views.quick_search_redirect, name="search_go"),
+    path("<int:pk>/preview/modal/", views.object_preview_modal, name="object_preview_modal"),
     path("<int:pk>/", views.object_detail, name="object_detail"),
     path("<int:pk>/edit/", views.object_edit, name="object_edit"),
     path("<int:pk>/favorite/", views.toggle_favorite, name="toggle_favorite"),

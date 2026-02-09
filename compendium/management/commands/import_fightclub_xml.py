@@ -12,6 +12,10 @@ OBJECT_TYPE_MAP = {
     "monster": GameObject.ObjectType.MONSTER,
     "spell": GameObject.ObjectType.SPELL,
     "item": GameObject.ObjectType.ITEM,
+    "class": GameObject.ObjectType.CLASS,
+    "race": GameObject.ObjectType.RACE,
+    "feat": GameObject.ObjectType.FEAT,
+    "background": GameObject.ObjectType.BACKGROUND,
 }
 
 

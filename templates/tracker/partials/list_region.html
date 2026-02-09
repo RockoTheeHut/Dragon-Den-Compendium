@@ -46,9 +46,12 @@
             </td>
             <td>
               <div class="tracker-name-line">
-                <strong>{{ entry.name }}</strong>
+                {% if entry.source_kind == "compendium_monster" %}
+                  <button class="tracker-entry-trigger" type="button" onclick="openTrackerMonsterModal({{ entry.id }})"><strong>{{ entry.name }}</strong></button>
+                {% else %}
+                  <strong>{{ entry.name }}</strong>
+                {% endif %}
                 <span class="tracker-type-chip tracker-type-{{ entry.entry_type }}">{{ entry.get_entry_type_display }}</span>
-                {% if entry.is_current %}<span class="tracker-current-chip">Current</span>{% endif %}
               </div>
               {% if entry.notes %}
                 <div class="tracker-note-line">
@@ -125,9 +128,12 @@
     {% for entry in entries %}
       <article class="tracker-card {% if entry.is_current %}current-turn{% endif %}">
         <div class="tracker-name-line">
-          <strong>{{ entry.name }}</strong>
+          {% if entry.source_kind == "compendium_monster" %}
+            <button class="tracker-entry-trigger" type="button" onclick="openTrackerMonsterModal({{ entry.id }})"><strong>{{ entry.name }}</strong></button>
+          {% else %}
+            <strong>{{ entry.name }}</strong>
+          {% endif %}
           <span class="tracker-type-chip tracker-type-{{ entry.entry_type }}">{{ entry.get_entry_type_display }}</span>
-          {% if entry.is_current %}<span class="tracker-current-chip">Current</span>{% endif %}
         </div>
         <div class="tracker-card-grid">
           <div>

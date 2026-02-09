@@ -1,0 +1,205 @@
+<article class="compendium-preview-root">
+  <header class="compendium-preview-header">
+    <div>
+      <h3>{{ game_object.name }}</h3>
+      <p class="muted">
+        {{ game_object.get_object_type_display }} | {{ game_object.system }} | {{ game_object.source }}
+      </p>
+    </div>
+    <a
+      class="button ghost small"
+      href="{% url 'compendium:object_detail' game_object.pk %}"
+      hx-get="{% url 'compendium:object_detail' game_object.pk %}"
+      hx-target="#main-content"
+      hx-push-url="true"
+      onclick="closeCompendiumPreviewModal()"
+    >Open Full Entry</a>
+  </header>
+
+  {% if summary_pairs %}
+    <section class="compendium-preview-section">
+      <h4>Summary</h4>
+      <div class="compendium-preview-grid">
+        {% for label, value in summary_pairs %}
+          <div class="compendium-preview-cell">
+            <span class="muted">{{ label }}</span>
+            <strong>{{ value }}</strong>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  {% if attacks %}
+    <section class="compendium-preview-section">
+      <h4>Attacks</h4>
+      <div class="compendium-preview-stack">
+        {% for attack in attacks %}
+          <details class="compendium-preview-disclosure" {% if forloop.first %}open{% endif %}>
+            <summary>{{ attack.name }}</summary>
+            <div class="compendium-preview-disclosure-body">
+              {% for line in attack.text_lines %}
+                <p class="muted">{{ line }}</p>
+              {% empty %}
+                <p class="muted">No attack details.</p>
+              {% endfor %}
+            </div>
+          </details>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  {% if class_ability_levels %}
+    <section class="compendium-preview-section">
+      <h4>Class Abilities</h4>
+      <div class="compendium-preview-stack">
+        {% for level in class_ability_levels %}
+          <details class="compendium-preview-disclosure" {% if forloop.first %}open{% endif %}>
+            <summary>Level {{ level.level }}</summary>
+            <div class="compendium-preview-disclosure-body compendium-preview-stack">
+              {% for feature in level.features %}
+                <article class="compendium-preview-card">
+                  <p><strong>{{ feature.name }}</strong></p>
+                  {% for line in feature.text_lines %}
+                    <p class="muted">{{ line }}</p>
+                  {% empty %}
+                    <p class="muted">No details.</p>
+                  {% endfor %}
+                </article>
+              {% endfor %}
+            </div>
+          </details>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  {% if class_subclasses %}
+    <section class="compendium-preview-section">
+      <h4>Subclasses</h4>
+      <div class="compendium-preview-stack">
+        {% for subclass in class_subclasses %}
+          <details class="compendium-preview-disclosure">
+            <summary>{{ subclass.name }}</summary>
+            <div class="compendium-preview-disclosure-body compendium-preview-stack">
+              {% for feature in subclass.features %}
+                <article class="compendium-preview-card">
+                  <p>
+                    {% if feature.level %}<span class="muted">Level {{ feature.level }}:</span> {% endif %}
+                    <strong>{{ feature.name }}</strong>
+                  </p>
+                  {% for line in feature.text_lines %}
+                    <p class="muted">{{ line }}</p>
+                  {% empty %}
+                    <p class="muted">No details.</p>
+                  {% endfor %}
+                </article>
+              {% endfor %}
+            </div>
+          </details>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  {% if class_option_levels %}
+    <section class="compendium-preview-section">
+      <h4>Class Options</h4>
+      <div class="compendium-preview-stack">
+        {% for level in class_option_levels %}
+          <details class="compendium-preview-disclosure">
+            <summary>Level {{ level.level }}</summary>
+            <div class="compendium-preview-disclosure-body compendium-preview-stack">
+              {% for feature in level.features %}
+                <article class="compendium-preview-card">
+                  <p><strong>{{ feature.name }}</strong></p>
+                  {% for line in feature.text_lines %}
+                    <p class="muted">{{ line }}</p>
+                  {% empty %}
+                    <p class="muted">No details.</p>
+                  {% endfor %}
+                </article>
+              {% endfor %}
+            </div>
+          </details>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  {% if class_progression_levels %}
+    <section class="compendium-preview-section">
+      <h4>Class Progression</h4>
+      <div class="compendium-preview-stack">
+        {% for level in class_progression_levels %}
+          <details class="compendium-preview-disclosure">
+            <summary>Level {{ level.level }}</summary>
+            <div class="compendium-preview-disclosure-body compendium-preview-stack">
+              {% for feature in level.features %}
+                <article class="compendium-preview-card">
+                  <p><strong>{{ feature.name }}</strong></p>
+                  {% for line in feature.text_lines %}
+                    <p class="muted">{{ line }}</p>
+                  {% empty %}
+                    <p class="muted">No details.</p>
+                  {% endfor %}
+                </article>
+              {% endfor %}
+            </div>
+          </details>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  {% for section in object_sections %}
+    <section class="compendium-preview-section">
+      <h4>{{ section.title }}</h4>
+      <div class="compendium-preview-stack">
+        {% for entry in section.entries %}
+          {% if section.use_disclosure %}
+            <details class="compendium-preview-disclosure" {% if forloop.first %}open{% endif %}>
+              <summary>
+                {{ entry.name }}
+                {% if entry.level %}
+                  <span class="muted">Level {{ entry.level }}</span>
+                {% endif %}
+              </summary>
+              <div class="compendium-preview-disclosure-body">
+                {% for line in entry.text_lines %}
+                  <p class="muted">{{ line }}</p>
+                {% empty %}
+                  <p class="muted">No details.</p>
+                {% endfor %}
+              </div>
+            </details>
+          {% else %}
+            <article class="compendium-preview-card">
+              <p><strong>{{ entry.name }}</strong></p>
+              {% for line in entry.text_lines %}
+                <p class="muted">{{ line }}</p>
+              {% empty %}
+                <p class="muted">No details.</p>
+              {% endfor %}
+            </article>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </section>
+  {% endfor %}
+
+  {% if description_lines %}
+    <section class="compendium-preview-section">
+      <h4>Details</h4>
+      <details class="compendium-preview-disclosure" open>
+        <summary>Description</summary>
+        <div class="compendium-preview-disclosure-body">
+          {% for line in description_lines %}
+            <p class="muted">{{ line }}</p>
+          {% endfor %}
+        </div>
+      </details>
+    </section>
+  {% endif %}
+</article>
