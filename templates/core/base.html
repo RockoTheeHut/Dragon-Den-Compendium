@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Dragon Den Compendium</title>
-  <link rel="stylesheet" href="{% static 'styles.css' %}">
+  <link rel="stylesheet" href="{% static 'styles.css' %}?v=phase1-core-polish-2">
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.3/Sortable.min.js"></script>
 </head>
@@ -110,8 +110,53 @@
     </div>
   </div>
 
-  <script src="{% static 'app.js' %}"></script>
+  <script src="{% static 'app.js' %}?v=phase1-core-polish-2"></script>
   <script>
+    function prefersReducedMotion() {
+      return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+    }
+
+    function openAppModal(modal) {
+      if (!modal) return;
+      if (modal._hideTimer) {
+        clearTimeout(modal._hideTimer);
+        modal._hideTimer = null;
+      }
+      modal.classList.remove("hidden");
+      modal.classList.remove("is-open");
+      modal.getBoundingClientRect();
+      if (prefersReducedMotion()) {
+        modal.classList.add("is-open");
+        return;
+      }
+      requestAnimationFrame(function () {
+        modal.classList.add("is-open");
+      });
+    }
+
+    function closeAppModal(modal, beforeClose) {
+      if (!modal) return;
+      if (typeof beforeClose === "function") {
+        beforeClose();
+      }
+      if (prefersReducedMotion()) {
+        modal.classList.remove("is-open");
+        modal.classList.add("hidden");
+        return;
+      }
+      modal.classList.remove("is-open");
+      if (modal._hideTimer) {
+        clearTimeout(modal._hideTimer);
+      }
+      modal._hideTimer = setTimeout(function () {
+        modal.classList.add("hidden");
+        modal._hideTimer = null;
+      }, 260);
+    }
+
+    window.openAppModal = openAppModal;
+    window.closeAppModal = closeAppModal;
+
     function updateScratchpadCounter() {
       const textarea = document.getElementById("scratchpad-content");
       const counter = document.getElementById("scratchpad-counter");
@@ -168,15 +213,14 @@
     function openNotesModal() {
       const modal = document.getElementById("notes-modal");
       if (!modal) return;
-      modal.classList.remove("hidden");
+      openAppModal(modal);
       htmx.ajax("GET", "{% url 'notes:modal' %}", "#notes-modal-content");
     }
 
     function closeNotesModal() {
       const modal = document.getElementById("notes-modal");
       if (!modal) return;
-      autosaveScratchpad();
-      modal.classList.add("hidden");
+      closeAppModal(modal, autosaveScratchpad);
     }
 
     function showDiceRolling() {
@@ -290,29 +334,27 @@
     function openDiceModal() {
       const modal = document.getElementById("dice-modal");
       if (!modal) return;
-      modal.classList.remove("hidden");
+      openAppModal(modal);
       htmx.ajax("GET", "{% url 'utilities:dice_modal' %}", "#dice-modal-content");
     }
 
     function closeDiceModal() {
       const modal = document.getElementById("dice-modal");
       if (!modal) return;
-      hideDiceRolling();
-      modal.classList.add("hidden");
+      closeAppModal(modal, hideDiceRolling);
     }
 
     function openRandomItemModal() {
       const modal = document.getElementById("random-item-modal");
       if (!modal) return;
-      modal.classList.remove("hidden");
+      openAppModal(modal);
       htmx.ajax("GET", "{% url 'utilities:random_item_modal' %}", "#random-item-modal-content");
     }
 
     function closeRandomItemModal() {
       const modal = document.getElementById("random-item-modal");
       if (!modal) return;
-      hideRandomItemPicking();
-      modal.classList.add("hidden");
+      closeAppModal(modal, hideRandomItemPicking);
     }
 
     document.body.addEventListener("htmx:afterSwap", function (event) {

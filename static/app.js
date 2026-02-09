@@ -133,12 +133,20 @@
   function openTrackerModal(modalId) {
     const modal = document.getElementById(modalId);
     if (!modal) return;
+    if (typeof window.openAppModal === "function") {
+      window.openAppModal(modal);
+      return;
+    }
     modal.classList.remove("hidden");
   }
 
   function closeTrackerModal(modalId) {
     const modal = document.getElementById(modalId);
     if (!modal) return;
+    if (typeof window.closeAppModal === "function") {
+      window.closeAppModal(modal);
+      return;
+    }
     modal.classList.add("hidden");
   }
 
@@ -146,7 +154,11 @@
     const modal = document.getElementById("tracker-edit-modal");
     const target = document.getElementById("tracker-edit-modal-content");
     if (!modal || !target || !window.htmx) return;
-    modal.classList.remove("hidden");
+    if (typeof window.openAppModal === "function") {
+      window.openAppModal(modal);
+    } else {
+      modal.classList.remove("hidden");
+    }
     window.htmx.ajax("GET", "/tracker/entries/" + entryId + "/edit-modal/", "#tracker-edit-modal-content");
   }
 
@@ -154,7 +166,11 @@
     const modal = document.getElementById("tracker-status-modal");
     const target = document.getElementById("tracker-status-modal-content");
     if (!modal || !target || !window.htmx) return;
-    modal.classList.remove("hidden");
+    if (typeof window.openAppModal === "function") {
+      window.openAppModal(modal);
+    } else {
+      modal.classList.remove("hidden");
+    }
     window.htmx.ajax("GET", "/tracker/entries/" + entryId + "/status/modal/", "#tracker-status-modal-content");
   }
 
