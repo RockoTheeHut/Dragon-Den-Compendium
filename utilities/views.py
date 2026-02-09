@@ -169,10 +169,57 @@ def save_magic_item_to_game(request):
 
 @login_required
 def dice_modal(request):
-    context = {"form": DiceToolForm(), "allowed_dice_sides": ALLOWED_DICE_SIDES}
-    if request.headers.get("HX-Request"):
+    in_modal = bool(request.headers.get("HX-Request"))
+    context = {
+        "form": DiceToolForm(),
+        "allowed_dice_sides": ALLOWED_DICE_SIDES,
+        "in_modal": in_modal,
+    }
+    if in_modal:
         return render(request, "utilities/dice_modal_content.html", context)
     return render_page(request, "utilities/dice_modal_content.html", context)
+
+
+@login_required
+def random_item_modal(request):
+    in_modal = bool(request.headers.get("HX-Request"))
+    context = {
+        "in_modal": in_modal,
+        "object_type_choices": GameObject.ObjectType.choices,
+        "selected_object_type": GameObject.ObjectType.ITEM,
+    }
+    if in_modal:
+        return render(request, "utilities/random_item_modal_content.html", context)
+    return render_page(request, "utilities/random_item_modal_content.html", context)
+
+
+@login_required
+@require_POST
+def random_item_pick(request):
+    selected_object_type = request.POST.get("object_type", GameObject.ObjectType.ITEM).strip()
+    allowed_object_types = {value for value, _label in GameObject.ObjectType.choices}
+    if selected_object_type and selected_object_type not in allowed_object_types:
+        return HttpResponseBadRequest("Invalid object type.")
+
+    items = GameObject.objects.all()
+    if selected_object_type:
+        items = items.filter(object_type=selected_object_type)
+    items = items.order_by("id")
+    item_count = items.count()
+    if item_count == 0:
+        return render(
+            request,
+            "utilities/partials/random_item_result.html",
+            {"random_item": None, "selected_object_type": selected_object_type},
+        )
+
+    random_index = random.randint(0, item_count - 1)
+    random_item = items[random_index]
+    return render(
+        request,
+        "utilities/partials/random_item_result.html",
+        {"random_item": random_item, "selected_object_type": selected_object_type},
+    )
 
 
 @login_required

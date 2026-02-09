@@ -53,6 +53,7 @@
           </div>
           <div class="topbar-actions">
             <button class="button" type="button" onclick="openDiceModal()">Roll Dice</button>
+            <button class="button" type="button" onclick="openRandomItemModal()">Random Item</button>
             <button class="button" type="button" onclick="openNotesModal()">Scratchpad</button>
             <form method="post" action="{% url 'logout' %}">
               {% csrf_token %}
@@ -80,7 +81,7 @@
   </div>
 
   <div id="notes-modal" class="modal hidden" onclick="if(event.target === this) closeNotesModal()">
-    <div class="modal-content">
+    <div class="modal-content modal-tool">
       <div class="modal-header">
         <h2>Scratchpad</h2>
         <button class="button ghost" type="button" onclick="closeNotesModal()">Close</button>
@@ -90,12 +91,22 @@
   </div>
 
   <div id="dice-modal" class="modal hidden" onclick="if(event.target === this) closeDiceModal()">
-    <div class="modal-content">
+    <div class="modal-content modal-tool">
       <div class="modal-header">
         <h2>Roll Dice</h2>
         <button class="button ghost" type="button" onclick="closeDiceModal()">Close</button>
       </div>
       <div id="dice-modal-content"></div>
+    </div>
+  </div>
+
+  <div id="random-item-modal" class="modal hidden" onclick="if(event.target === this) closeRandomItemModal()">
+    <div class="modal-content modal-tool">
+      <div class="modal-header">
+        <h2>Random Item Picker</h2>
+        <button class="button ghost" type="button" onclick="closeRandomItemModal()">Close</button>
+      </div>
+      <div id="random-item-modal-content"></div>
     </div>
   </div>
 
@@ -261,6 +272,19 @@
       const modal = document.getElementById("dice-modal");
       if (!modal) return;
       hideDiceRolling();
+      modal.classList.add("hidden");
+    }
+
+    function openRandomItemModal() {
+      const modal = document.getElementById("random-item-modal");
+      if (!modal) return;
+      modal.classList.remove("hidden");
+      htmx.ajax("GET", "{% url 'utilities:random_item_modal' %}", "#random-item-modal-content");
+    }
+
+    function closeRandomItemModal() {
+      const modal = document.getElementById("random-item-modal");
+      if (!modal) return;
       modal.classList.add("hidden");
     }
 

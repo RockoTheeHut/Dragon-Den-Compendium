@@ -1,0 +1,24 @@
+{% if not in_modal %}
+  <section class="panel">
+    <h2>Random Item Picker</h2>
+{% endif %}
+<div class="inline-form">
+  <form method="post" action="{% url 'utilities:random_item_pick' %}" hx-post="{% url 'utilities:random_item_pick' %}" hx-target="#random-item-result" hx-swap="innerHTML" class="inline-form">
+    {% csrf_token %}
+    <label for="random-item-object-type">Type</label>
+    <select id="random-item-object-type" name="object_type">
+      <option value="" {% if not selected_object_type %}selected{% endif %}>Any type</option>
+      {% for value, label in object_type_choices %}
+        <option value="{{ value }}" {% if selected_object_type == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <button class="button" type="submit">Pick Random Item</button>
+  </form>
+</div>
+
+<div id="random-item-result" class="dice-result muted">
+  Click the button to pick a random item.
+</div>
+{% if not in_modal %}
+  </section>
+{% endif %}

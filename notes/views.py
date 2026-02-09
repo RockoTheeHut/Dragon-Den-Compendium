@@ -30,21 +30,23 @@ def _get_or_create_scratchpad(user):
     )
 
 
-def _scratchpad_context(user):
+def _scratchpad_context(user, in_modal=False):
     scratchpad = _get_or_create_scratchpad(user)
     return {
         "scratchpad": scratchpad,
         "scratchpad_max_length": SCRATCHPAD_MAX_LENGTH,
         "scratchpad_remaining": max(SCRATCHPAD_MAX_LENGTH - len(scratchpad.content or ""), 0),
+        "in_modal": in_modal,
     }
 
 
 @login_required
 def modal(request):
     template = "notes/modal_content.html"
-    context = _scratchpad_context(request.user)
+    in_modal = bool(request.headers.get("HX-Request"))
+    context = _scratchpad_context(request.user, in_modal=in_modal)
 
-    if request.headers.get("HX-Request"):
+    if in_modal:
         return render(request, template, context)
     return render_page(request, template, context)
 
@@ -59,7 +61,7 @@ def save_scratchpad(request):
     scratchpad.save(update_fields=["content", "visibility", "title", "updated_at"])
 
     if request.headers.get("HX-Request"):
-        return render(request, "notes/modal_content.html", _scratchpad_context(request.user))
+        return render(request, "notes/modal_content.html", _scratchpad_context(request.user, in_modal=True))
     return redirect("core:home")
 
 
@@ -73,5 +75,5 @@ def clear_scratchpad(request):
     scratchpad.save(update_fields=["content", "visibility", "title", "updated_at"])
 
     if request.headers.get("HX-Request"):
-        return render(request, "notes/modal_content.html", _scratchpad_context(request.user))
+        return render(request, "notes/modal_content.html", _scratchpad_context(request.user, in_modal=True))
     return redirect("core:home")

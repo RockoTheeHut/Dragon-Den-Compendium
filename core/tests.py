@@ -39,3 +39,5 @@ class HomeViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Your Recent Games")
         self.assertContains(response, "Stormreach")
+        self.assertContains(response, "Roll Dice")
+        self.assertContains(response, "Random Item")

@@ -407,6 +407,18 @@ td {
   color: var(--muted);
 }
 
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .warning {
   color: #ffd46e;
 }
@@ -466,6 +478,16 @@ td {
   padding: 14px;
 }
 
+.modal-content.modal-tool {
+  width: min(940px, 94vw);
+  max-height: 88vh;
+  min-height: min(560px, 88vh);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .modal-small {
   width: min(420px, 95vw);
 }
@@ -474,6 +496,21 @@ td {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 10px;
+}
+
+#notes-modal-content,
+#dice-modal-content,
+#random-item-modal-content {
+  display: grid;
+  gap: 10px;
+  flex: 1 1 auto;
+  overflow: auto;
+  align-content: start;
+}
+
+#notes-modal-content #scratchpad-content {
+  min-height: min(46vh, 500px);
 }
 
 .note-card {

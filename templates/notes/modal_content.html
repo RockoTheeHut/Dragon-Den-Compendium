@@ -1,15 +1,19 @@
-<section class="panel">
-  <h3>Scratchpad</h3>
-  <form id="scratchpad-form" method="post" action="{% url 'notes:save' %}">
+{% if not in_modal %}
+  <section class="panel">
+    <h2>Scratchpad</h2>
+{% endif %}
+<form id="scratchpad-form" method="post" action="{% url 'notes:save' %}">
+  {% csrf_token %}
+  <textarea id="scratchpad-content" name="content" rows="14" maxlength="{{ scratchpad_max_length }}" placeholder="Jot anything here...">{{ scratchpad.content }}</textarea>
+</form>
+<div class="inline-form">
+  <form method="post" action="{% url 'notes:clear' %}" hx-post="{% url 'notes:clear' %}" hx-target="#notes-modal-content" hx-swap="innerHTML">
     {% csrf_token %}
-    <textarea id="scratchpad-content" name="content" rows="14" maxlength="{{ scratchpad_max_length }}" placeholder="Jot anything here...">{{ scratchpad.content }}</textarea>
+    <button class="button danger" type="submit">Clear</button>
   </form>
-  <div class="inline-form">
-    <form method="post" action="{% url 'notes:clear' %}" hx-post="{% url 'notes:clear' %}" hx-target="#notes-modal-content" hx-swap="innerHTML">
-      {% csrf_token %}
-      <button class="button danger" type="submit">Clear</button>
-    </form>
-    <span id="scratchpad-counter" class="muted" data-max-length="{{ scratchpad_max_length }}">{{ scratchpad_remaining }} characters remaining</span>
-    <span class="muted">Last saved: {{ scratchpad.updated_at }}</span>
-  </div>
-</section>
+  <span id="scratchpad-counter" class="muted" data-max-length="{{ scratchpad_max_length }}">{{ scratchpad_remaining }} characters remaining</span>
+  <span class="muted">Last saved: {{ scratchpad.updated_at }}</span>
+</div>
+{% if not in_modal %}
+  </section>
+{% endif %}

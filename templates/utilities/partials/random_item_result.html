@@ -1,0 +1,17 @@
+{% if random_item %}
+  <p>
+    <strong>Random Pick:</strong>
+    <a href="{% url 'compendium:object_detail' random_item.pk %}" hx-get="{% url 'compendium:object_detail' random_item.pk %}" hx-target="#main-content" hx-push-url="true">
+      {{ random_item.name }}
+    </a>
+  </p>
+  <p class="muted">
+    Type: {{ random_item.object_type }} | System: {{ random_item.system }} | Source: {{ random_item.source }}
+  </p>
+{% else %}
+  {% if selected_object_type %}
+    <p class="muted">No objects found for the selected type.</p>
+  {% else %}
+    <p class="muted">No objects found in the compendium yet.</p>
+  {% endif %}
+{% endif %}
