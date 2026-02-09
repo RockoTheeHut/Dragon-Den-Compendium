@@ -339,6 +339,49 @@
     });
   }
 
+  function wireRulesSectionControls() {
+    const roots = document.querySelectorAll("[data-rules-controls='1']");
+    if (!roots.length) return;
+
+    roots.forEach(function (root) {
+      if (root.dataset.rulesBound === "1") return;
+      root.dataset.rulesBound = "1";
+
+      const pageRoot = root.closest(".compendium-entry-main");
+      if (!pageRoot) return;
+      const dropdowns = pageRoot.querySelectorAll(".rules-dropdown");
+      if (!dropdowns.length) return;
+
+      const expandButton = root.querySelector("[data-rules-expand-all='1']");
+      const collapseButton = root.querySelector("[data-rules-collapse-all='1']");
+
+      if (expandButton) {
+        expandButton.addEventListener("click", function () {
+          dropdowns.forEach(function (dropdown) {
+            dropdown.open = true;
+          });
+        });
+      }
+
+      if (collapseButton) {
+        collapseButton.addEventListener("click", function () {
+          dropdowns.forEach(function (dropdown) {
+            dropdown.open = false;
+          });
+        });
+      }
+    });
+  }
+
+  function scrollToTopForCompendiumDetailSwap(event) {
+    if (!event || !event.target || event.target.id !== "main-content") return;
+    const path = window.location.pathname || "";
+    if (!/^\/compendium\/\d+\/?$/.test(path)) return;
+    window.requestAnimationFrame(function () {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    });
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     wireButtons();
     wireTurnSorting();
@@ -346,18 +389,21 @@
     wireTrackerTabs();
     wireTrackerEntryTypeForms();
     wireFilterSelectInputs();
+    wireRulesSectionControls();
   });
 
   document.body.addEventListener("htmx:afterSwap", function (event) {
     if (event && isAnimatableSwapTarget(event.target)) {
       animateSwapTarget(event.target);
     }
+    scrollToTopForCompendiumDetailSwap(event);
     wireButtons();
     wireTurnSorting();
     wireGlobalSearch();
     wireTrackerTabs();
     wireTrackerEntryTypeForms();
     wireFilterSelectInputs();
+    wireRulesSectionControls();
   });
 
   window.openTrackerModal = openTrackerModal;

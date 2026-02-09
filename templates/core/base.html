@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Dragon Den Compendium</title>
-  <link rel="stylesheet" href="{% static 'styles.css' %}?v=phase2-polish-7">
+  <link rel="stylesheet" href="{% static 'styles.css' %}?v=phase2-polish-17">
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.3/Sortable.min.js"></script>
 </head>
@@ -19,7 +19,7 @@
         </div>
         <nav class="nav-links">
           <a href="{% url 'core:home' %}" hx-get="{% url 'core:home' %}" hx-target="#main-content" hx-push-url="true" class="nav-link"><span class="nav-link-icon">H</span><span class="nav-link-text">Home</span></a>
-          <a href="{% url 'compendium:list' %}" hx-get="{% url 'compendium:list' %}" hx-target="#main-content" hx-push-url="true" class="nav-link"><span class="nav-link-icon">C</span><span class="nav-link-text">Compendium</span></a>
+          <a href="{% url 'compendium:list' %}" hx-get="{% url 'compendium:list' %}" hx-target="#main-content" hx-push-url="true" class="nav-link"><span class="nav-link-icon nav-link-icon-image-wrap"><img class="nav-link-icon-image" src="{% static 'img/compendium-icon.png' %}" alt="" aria-hidden="true"></span><span class="nav-link-text">Compendium</span></a>
           <a href="{% url 'games:list' %}" hx-get="{% url 'games:list' %}" hx-target="#main-content" hx-push-url="true" class="nav-link"><span class="nav-link-icon">G</span><span class="nav-link-text">Games</span></a>
           <a href="{% url 'tracker:dashboard' %}" hx-get="{% url 'tracker:dashboard' %}" hx-target="#main-content" hx-push-url="true" class="nav-link"><span class="nav-link-icon">T</span><span class="nav-link-text">Turn Tracker</span></a>
           <a href="{% url 'utilities:magic_item' %}" hx-get="{% url 'utilities:magic_item' %}" hx-target="#main-content" hx-push-url="true" class="nav-link"><span class="nav-link-icon">I</span><span class="nav-link-text">Item Generator</span></a>
@@ -110,7 +110,11 @@
     </div>
   </div>
 
-  <script src="{% static 'app.js' %}?v=phase2-polish-7"></script>
+  {% if user.is_authenticated %}
+    {% include "compendium/partials/object_preview_modal_shell.html" %}
+  {% endif %}
+
+  <script src="{% static 'app.js' %}?v=phase2-polish-17"></script>
   <script>
     function prefersReducedMotion() {
       return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);

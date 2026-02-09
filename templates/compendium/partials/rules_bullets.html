@@ -1,0 +1,10 @@
+{% if bullets_html %}
+  <section class="rules-bullets">
+    <h4>Examples</h4>
+    <ul>
+      {% for bullet in bullets_html %}
+        <li>{{ bullet }}</li>
+      {% endfor %}
+    </ul>
+  </section>
+{% endif %}

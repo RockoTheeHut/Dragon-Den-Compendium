@@ -32,18 +32,6 @@
   </form>
 </section>
 
-<div id="compendium-preview-modal" class="modal hidden" onclick="if(event.target === this) closeCompendiumPreviewModal()">
-  <div class="modal-content modal-tool">
-    <div class="modal-header">
-      <h2>Compendium Preview</h2>
-      <button class="button ghost" type="button" onclick="closeCompendiumPreviewModal()">Close</button>
-    </div>
-    <div id="compendium-preview-modal-content" class="compendium-preview-root muted">
-      Select an object to preview.
-    </div>
-  </div>
-</div>
-
 <section class="panel">
   <p class="muted">Showing {{ objects|length }} of {{ page_obj.paginator.count }} objects on this page load.</p>
   {% if objects %}

@@ -9,9 +9,9 @@
       </form>
     </td>
     <td>
-      <button class="compendium-row-trigger" type="button" onclick="openCompendiumPreviewModal({{ object.id }})">{{ object.name }}</button>
+      <a class="compendium-row-trigger" href="{% url 'compendium:object_detail' object.pk %}" hx-get="{% url 'compendium:object_detail' object.pk %}" hx-target="#main-content" hx-push-url="true">{{ object.name }}</a>
     </td>
-    <td>{{ object.object_type }}</td>
+    <td>{{ object.get_object_type_display }}</td>
     <td>{{ object.system }}</td>
     <td>{{ object.source }}</td>
     <td>

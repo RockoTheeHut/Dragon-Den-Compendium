@@ -1,0 +1,10 @@
+{% if key_rules_html %}
+  <section class="rules-key-callout">
+    <h4>Key Rules</h4>
+    <ul>
+      {% for line in key_rules_html %}
+        <li>{{ line }}</li>
+      {% endfor %}
+    </ul>
+  </section>
+{% endif %}

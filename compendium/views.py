@@ -4,9 +4,11 @@ from urllib.parse import urlencode
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import Exists, OuterRef
+from django.db.models import Case, Exists, IntegerField, OuterRef, Value, When
 from django.http import HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.html import escape, format_html
+from django.utils.safestring import mark_safe
 from django.views.decorators.http import require_GET, require_POST
 
 from core.rendering import render_page
@@ -56,6 +58,35 @@ COUNTER_RESET_LABELS = {
     "D": "Daily",
 }
 
+REFERENCE_OBJECT_TYPES = [
+    GameObject.ObjectType.SPELL,
+    GameObject.ObjectType.ITEM,
+    GameObject.ObjectType.MONSTER,
+    GameObject.ObjectType.CLASS,
+    GameObject.ObjectType.RACE,
+    GameObject.ObjectType.FEAT,
+    GameObject.ObjectType.BACKGROUND,
+]
+
+KEY_RULE_SENTENCE_PATTERN = re.compile(
+    r"\b(\d+|gp|sp|cp|pp|hour|hours|minute|minutes|day|days|round|rounds|level|levels|slot|slots|rest|rests|cost|costs|maximum|minimum|must|can't|cannot)\b",
+    flags=re.IGNORECASE,
+)
+INLINE_LIST_HINT_PATTERN = re.compile(r"\b(for example|such as|the following)\b", flags=re.IGNORECASE)
+KEY_TERM_EMPHASIS = ["spellbook", "cantrip", "spell level", "prepared spells"]
+OBJECT_TYPE_SORT_ORDER = [
+    GameObject.ObjectType.CLASS,
+    GameObject.ObjectType.FEAT,
+    GameObject.ObjectType.ITEM,
+    GameObject.ObjectType.MONSTER,
+    GameObject.ObjectType.SPELL,
+    GameObject.ObjectType.RACE,
+    GameObject.ObjectType.BACKGROUND,
+    GameObject.ObjectType.CHARACTER,
+    GameObject.ObjectType.NPC,
+    GameObject.ObjectType.MISC,
+]
+
 
 def _to_list(value):
     if value is None:
@@ -70,6 +101,55 @@ def _clean_text(value):
         return ""
     text = str(value).strip()
     return text
+
+
+def _append_readable_chunks(lines, value, max_chunk_length=260):
+    text = _clean_text(value)
+    if not text:
+        return
+
+    paragraph_blocks = [block.strip() for block in re.split(r"\n\s*\n", text) if block.strip()]
+    if not paragraph_blocks:
+        paragraph_blocks = [text]
+
+    for block in paragraph_blocks:
+        normalized = re.sub(r"\s+", " ", block).strip()
+        if len(normalized) <= max_chunk_length:
+            lines.append(normalized)
+            continue
+
+        sentence_parts = [part.strip() for part in re.split(r"(?<=[.!?])\s+", normalized) if part.strip()]
+        if len(sentence_parts) <= 1:
+            sentence_parts = [part.strip() for part in re.split(r";\s+", normalized) if part.strip()]
+        if len(sentence_parts) <= 1:
+            sentence_parts = [part.strip() for part in re.split(r",\s+", normalized) if part.strip()]
+        if len(sentence_parts) <= 1:
+            sentence_parts = [normalized]
+
+        current = ""
+        for sentence in sentence_parts:
+            if len(sentence) > max_chunk_length:
+                if current:
+                    lines.append(current)
+                    current = ""
+                for i in range(0, len(sentence), max_chunk_length):
+                    chunk = sentence[i:i + max_chunk_length].strip()
+                    if chunk:
+                        lines.append(chunk)
+                continue
+
+            if not current:
+                current = sentence
+                continue
+
+            if len(current) + 1 + len(sentence) <= max_chunk_length:
+                current = f"{current} {sentence}"
+            else:
+                lines.append(current)
+                current = sentence
+
+        if current:
+            lines.append(current)
 
 
 def _extract_text_lines(value):
@@ -92,16 +172,14 @@ def _extract_text_lines(value):
             name = _clean_text(item.get("name"))
             text = _clean_text(item.get("text"))
             if name and text:
-                lines.append(f"{name}: {text}")
+                _append_readable_chunks(lines, f"{name}: {text}")
             elif text:
-                lines.append(text)
+                _append_readable_chunks(lines, text)
             elif name:
-                lines.append(name)
+                _append_readable_chunks(lines, name)
             return
 
-        cleaned = _clean_text(item)
-        if cleaned:
-            lines.append(cleaned)
+        _append_readable_chunks(lines, item)
 
     collect(value)
     return lines
@@ -435,6 +513,500 @@ def _build_preview_context(game_object):
     }
 
 
+def _collect_preview_text_lines(preview_context):
+    lines = []
+    lines.extend(preview_context.get("description_lines", []))
+    lines.extend(value for _, value in preview_context.get("summary_pairs", []))
+
+    for attack in preview_context.get("attacks", []):
+        lines.append(_clean_text(attack.get("name")))
+        lines.extend(_to_list(attack.get("text_lines")))
+
+    for section in preview_context.get("object_sections", []):
+        lines.append(_clean_text(section.get("title")))
+        for entry in section.get("entries", []):
+            lines.append(_clean_text(entry.get("name")))
+            lines.extend(_to_list(entry.get("text_lines")))
+
+    for level in preview_context.get("class_ability_levels", []):
+        for feature in level.get("features", []):
+            lines.append(_clean_text(feature.get("name")))
+            lines.extend(_to_list(feature.get("text_lines")))
+
+    for subclass in preview_context.get("class_subclasses", []):
+        lines.append(_clean_text(subclass.get("name")))
+        for feature in subclass.get("features", []):
+            lines.append(_clean_text(feature.get("name")))
+            lines.extend(_to_list(feature.get("text_lines")))
+
+    for level in preview_context.get("class_option_levels", []):
+        for feature in level.get("features", []):
+            lines.append(_clean_text(feature.get("name")))
+            lines.extend(_to_list(feature.get("text_lines")))
+
+    for level in preview_context.get("class_progression_levels", []):
+        for feature in level.get("features", []):
+            lines.append(_clean_text(feature.get("name")))
+            lines.extend(_to_list(feature.get("text_lines")))
+
+    return [line for line in (_clean_text(line) for line in lines) if line]
+
+
+def _build_related_reference_groups(game_object, preview_context):
+    text_lines = _collect_preview_text_lines(preview_context)
+    if not text_lines:
+        return []
+
+    corpus = " ".join(text_lines).lower()
+    object_type_labels = dict(GameObject.ObjectType.choices)
+    grouped = {object_type: [] for object_type in REFERENCE_OBJECT_TYPES}
+
+    candidates = GameObject.objects.filter(
+        system=game_object.system,
+        object_type__in=REFERENCE_OBJECT_TYPES,
+    ).exclude(pk=game_object.pk).only("id", "name", "object_type").order_by("name")
+
+    for candidate in candidates:
+        name = _clean_text(candidate.name)
+        if not name:
+            continue
+
+        simple_name = re.sub(r"[^a-z0-9]+", "", name.lower())
+        if len(simple_name) < 4:
+            continue
+
+        lowered_name = name.lower()
+        if lowered_name not in corpus:
+            continue
+
+        if not re.search(rf"(?<![a-z0-9]){re.escape(lowered_name)}(?![a-z0-9])", corpus):
+            continue
+
+        bucket = grouped.get(candidate.object_type)
+        if bucket is None or len(bucket) >= 12:
+            continue
+        bucket.append({"id": candidate.id, "name": name})
+
+    result = []
+    for object_type in REFERENCE_OBJECT_TYPES:
+        items = grouped.get(object_type) or []
+        if not items:
+            continue
+        result.append(
+            {
+                "object_type": object_type,
+                "label": object_type_labels.get(object_type, object_type.title()),
+                "items": items,
+            }
+        )
+    return result
+
+
+def _build_reference_lookup(related_reference_groups):
+    lookup = {}
+    for group in related_reference_groups:
+        for item in group.get("items", []):
+            key = _clean_text(item.get("name")).lower()
+            object_id = item.get("id")
+            if key and object_id and key not in lookup:
+                lookup[key] = object_id
+    return lookup
+
+
+def _compile_reference_pattern(reference_lookup):
+    if not reference_lookup:
+        return None
+    names = sorted(reference_lookup.keys(), key=len, reverse=True)
+    if not names:
+        return None
+    pattern = r"(?<![A-Za-z0-9])(" + "|".join(re.escape(name) for name in names) + r")(?![A-Za-z0-9])"
+    return re.compile(pattern, flags=re.IGNORECASE)
+
+
+def _split_sentences(text):
+    cleaned = _clean_text(text)
+    if not cleaned:
+        return []
+    return [part.strip() for part in re.split(r"(?<=[.!?])\s+", cleaned) if part.strip()]
+
+
+def _extract_key_rules_and_bullets(raw_lines):
+    key_rules = []
+    bullets = []
+
+    def append_unique(target, value):
+        candidate = _clean_text(value)
+        if candidate and candidate not in target:
+            target.append(candidate)
+
+    for raw_line in raw_lines:
+        line = _clean_text(raw_line)
+        if not line:
+            continue
+
+        for sentence in _split_sentences(line):
+            if KEY_RULE_SENTENCE_PATTERN.search(sentence):
+                append_unique(key_rules, sentence)
+
+        if re.match(r"^(\*|-|•|\d+\.)\s+", line):
+            append_unique(bullets, re.sub(r"^(\*|-|•|\d+\.)\s+", "", line))
+            continue
+
+        if INLINE_LIST_HINT_PATTERN.search(line) and ":" in line:
+            _, remainder = line.split(":", 1)
+            remainder = remainder.strip()
+            delimiter = ";" if ";" in remainder else ","
+            parts = [part.strip(" .") for part in remainder.split(delimiter)]
+            parts = [part for part in parts if len(part) > 2]
+            if len(parts) >= 2:
+                for part in parts:
+                    append_unique(bullets, part)
+
+    return key_rules, bullets
+
+
+def _group_lines_for_dropdowns(raw_lines, html_lines, group_size=3):
+    groups = []
+    current_raw = []
+    current_html = []
+    for raw_line, html_line in zip(raw_lines, html_lines):
+        current_raw.append(raw_line)
+        current_html.append(html_line)
+        if len(current_raw) >= group_size:
+            groups.append({"raw": current_raw, "html": current_html})
+            current_raw = []
+            current_html = []
+
+    if current_raw:
+        groups.append({"raw": current_raw, "html": current_html})
+    return groups
+
+
+def _format_plain_segment_with_emphasis(segment, seen_terms):
+    text = _clean_text(segment)
+    if not text:
+        return ""
+    if seen_terms is None:
+        return escape(text)
+
+    next_match = None
+    next_term = None
+    for term in KEY_TERM_EMPHASIS:
+        if term in seen_terms:
+            continue
+        match = re.search(rf"\b{re.escape(term)}\b", text, flags=re.IGNORECASE)
+        if not match:
+            continue
+        if next_match is None or match.start() < next_match.start():
+            next_match = match
+            next_term = term
+
+    if next_match is None or next_term is None:
+        return escape(text)
+
+    seen_terms.add(next_term)
+    before = escape(text[:next_match.start()])
+    highlighted = format_html("<strong>{}</strong>", text[next_match.start():next_match.end()])
+    after = _format_plain_segment_with_emphasis(text[next_match.end():], seen_terms)
+    return mark_safe(f"{before}{highlighted}{after}")
+
+
+def _linkify_text_line(text, reference_lookup, pattern, seen_terms=None):
+    cleaned = _clean_text(text)
+    if not cleaned:
+        return ""
+    if pattern is None:
+        return _format_plain_segment_with_emphasis(cleaned, seen_terms)
+
+    parts = []
+    last_index = 0
+    for match in pattern.finditer(cleaned):
+        start, end = match.span()
+        object_id = reference_lookup.get(match.group(0).lower())
+        if object_id is None:
+            continue
+        if start > last_index:
+            parts.append(_format_plain_segment_with_emphasis(cleaned[last_index:start], seen_terms))
+        parts.append(
+            format_html(
+                '<button class="compendium-inline-ref" type="button" onclick="openCompendiumPreviewModal({})">{}</button>',
+                object_id,
+                match.group(0),
+            )
+        )
+        last_index = end
+
+    if last_index < len(cleaned):
+        parts.append(_format_plain_segment_with_emphasis(cleaned[last_index:], seen_terms))
+
+    if not parts:
+        return _format_plain_segment_with_emphasis(cleaned, seen_terms)
+    return mark_safe("".join(str(part) for part in parts))
+
+
+def _apply_inline_reference_links(preview_context, reference_lookup, pattern):
+    description_seen_terms = set()
+    preview_context["description_lines_html"] = [
+        _linkify_text_line(line, reference_lookup, pattern, description_seen_terms)
+        for line in preview_context.get("description_lines", [])
+    ]
+
+    for attack in preview_context.get("attacks", []):
+        seen_terms = set()
+        attack["text_lines_html"] = [
+            _linkify_text_line(line, reference_lookup, pattern, seen_terms) for line in attack.get("text_lines", [])
+        ]
+
+    for section in preview_context.get("object_sections", []):
+        for entry in section.get("entries", []):
+            seen_terms = set()
+            entry["text_lines_html"] = [
+                _linkify_text_line(line, reference_lookup, pattern, seen_terms) for line in entry.get("text_lines", [])
+            ]
+
+    for level in preview_context.get("class_ability_levels", []):
+        for feature in level.get("features", []):
+            seen_terms = set()
+            feature["text_lines_html"] = [
+                _linkify_text_line(line, reference_lookup, pattern, seen_terms) for line in feature.get("text_lines", [])
+            ]
+
+    for subclass in preview_context.get("class_subclasses", []):
+        for feature in subclass.get("features", []):
+            seen_terms = set()
+            feature["text_lines_html"] = [
+                _linkify_text_line(line, reference_lookup, pattern, seen_terms) for line in feature.get("text_lines", [])
+            ]
+
+    for level in preview_context.get("class_option_levels", []):
+        for feature in level.get("features", []):
+            seen_terms = set()
+            feature["text_lines_html"] = [
+                _linkify_text_line(line, reference_lookup, pattern, seen_terms) for line in feature.get("text_lines", [])
+            ]
+
+    for level in preview_context.get("class_progression_levels", []):
+        for feature in level.get("features", []):
+            seen_terms = set()
+            feature["text_lines_html"] = [
+                _linkify_text_line(line, reference_lookup, pattern, seen_terms) for line in feature.get("text_lines", [])
+            ]
+
+
+def _build_dropdown_payload(title, raw_lines, html_lines, dropdown_id, is_open, reference_lookup, pattern):
+    key_rules, bullets = _extract_key_rules_and_bullets(raw_lines)
+    key_rules_html = [
+        _linkify_text_line(sentence, reference_lookup, pattern, seen_terms=set()) for sentence in key_rules
+    ]
+    bullets_html = [
+        _linkify_text_line(item, reference_lookup, pattern, seen_terms=set()) for item in bullets
+    ]
+    return {
+        "id": dropdown_id,
+        "title": title,
+        "paragraphs_html": html_lines,
+        "key_rules_html": key_rules_html,
+        "bullets_html": bullets_html,
+        "is_open": is_open,
+    }
+
+
+def _build_rules_sections(preview_context, reference_lookup, pattern):
+    sections = []
+
+    def get_or_create_section(title):
+        for section in sections:
+            if section["title"] == title:
+                return section
+        section = {"title": title, "dropdowns": []}
+        sections.append(section)
+        return section
+
+    def add_entry_dropdowns(section_title, entry_title, raw_lines, html_lines, split_groups=False, group_size=3):
+        clean_raw = [line for line in (_clean_text(line) for line in raw_lines) if line]
+        clean_html = [line for line in html_lines if _clean_text(line)]
+        if not clean_raw or not clean_html:
+            return
+        if split_groups:
+            groups = _group_lines_for_dropdowns(clean_raw, clean_html, group_size=group_size)
+        else:
+            groups = [{"raw": clean_raw, "html": clean_html}]
+        section = get_or_create_section(section_title)
+        for group in groups:
+            section["dropdowns"].append(
+                {
+                    "entry_title": entry_title,
+                    "raw_lines": group["raw"],
+                    "html_lines": group["html"],
+                }
+            )
+
+    def add_grouped_dropdown(section_title, entry_title, entry_blocks):
+        clean_blocks = []
+        for block in entry_blocks:
+            raw_lines = [line for line in (_clean_text(line) for line in block.get("raw_lines", [])) if line]
+            html_lines = [line for line in block.get("html_lines", []) if _clean_text(line)]
+            if not raw_lines or not html_lines:
+                continue
+            clean_blocks.append(
+                {
+                    "title": _clean_text(block.get("title")) or "Details",
+                    "raw_lines": raw_lines,
+                    "html_lines": html_lines,
+                }
+            )
+        if not clean_blocks:
+            return
+        section = get_or_create_section(section_title)
+        section["dropdowns"].append(
+            {
+                "entry_title": entry_title,
+                "entry_blocks": clean_blocks,
+            }
+        )
+
+    for attack in preview_context.get("attacks", []):
+        add_entry_dropdowns("Attacks", attack.get("name") or "Attack", attack.get("text_lines", []), attack.get("text_lines_html", []))
+
+    for level in preview_context.get("class_ability_levels", []):
+        level_label = level.get("level") or "?"
+        blocks = []
+        for feature in level.get("features", []):
+            feature_name = _clean_text(feature.get("name"))
+            blocks.append(
+                {
+                    "title": feature_name or "Feature",
+                    "raw_lines": feature.get("text_lines", []),
+                    "html_lines": feature.get("text_lines_html", []),
+                }
+            )
+        add_grouped_dropdown("Class Abilities", f"Level {level_label}", blocks)
+
+    for subclass in preview_context.get("class_subclasses", []):
+        subclass_name = subclass.get("name") or "Subclass"
+        blocks = []
+        for feature in subclass.get("features", []):
+            level_label = feature.get("level") or "?"
+            feature_name = _clean_text(feature.get("name"))
+            heading = f"Level {level_label}: {feature_name}" if feature_name else f"Level {level_label}"
+            blocks.append(
+                {
+                    "title": heading,
+                    "raw_lines": feature.get("text_lines", []),
+                    "html_lines": feature.get("text_lines_html", []),
+                }
+            )
+        add_grouped_dropdown("Subclasses", subclass_name, blocks)
+
+    for level in preview_context.get("class_option_levels", []):
+        level_label = level.get("level") or "?"
+        blocks = []
+        for feature in level.get("features", []):
+            feature_name = _clean_text(feature.get("name"))
+            blocks.append(
+                {
+                    "title": feature_name or "Option",
+                    "raw_lines": feature.get("text_lines", []),
+                    "html_lines": feature.get("text_lines_html", []),
+                }
+            )
+        add_grouped_dropdown("Class Options", f"Level {level_label}", blocks)
+
+    for level in preview_context.get("class_progression_levels", []):
+        level_label = level.get("level") or "?"
+        blocks = []
+        for feature in level.get("features", []):
+            feature_name = _clean_text(feature.get("name"))
+            blocks.append(
+                {
+                    "title": feature_name or "Progression",
+                    "raw_lines": feature.get("text_lines", []),
+                    "html_lines": feature.get("text_lines_html", []),
+                }
+            )
+        add_grouped_dropdown("Class Progression", f"Level {level_label}", blocks)
+
+    for section in preview_context.get("object_sections", []):
+        section_title = section.get("title") or "Details"
+        for entry in section.get("entries", []):
+            add_entry_dropdowns(
+                section_title,
+                entry.get("name") or "Entry",
+                entry.get("text_lines", []),
+                entry.get("text_lines_html", []),
+            )
+
+    add_entry_dropdowns(
+        "Details",
+        "Overview",
+        preview_context.get("description_lines", []),
+        preview_context.get("description_lines_html", []),
+    )
+
+    payload_sections = []
+    for section_index, section in enumerate(sections):
+        dropdowns = []
+        for dropdown_index, source in enumerate(section["dropdowns"]):
+            dropdown_id = f"rules-{section_index + 1}-{dropdown_index + 1}"
+            if source.get("entry_blocks"):
+                blocks = []
+                for block in source["entry_blocks"]:
+                    key_rules, bullets = _extract_key_rules_and_bullets(block["raw_lines"])
+                    key_rules_html = [
+                        _linkify_text_line(sentence, reference_lookup, pattern, seen_terms=set())
+                        for sentence in key_rules
+                    ]
+                    bullets_html = [
+                        _linkify_text_line(item, reference_lookup, pattern, seen_terms=set())
+                        for item in bullets
+                    ]
+                    blocks.append(
+                        {
+                            "title": block["title"],
+                            "paragraphs_html": block["html_lines"],
+                            "key_rules_html": key_rules_html,
+                            "bullets_html": bullets_html,
+                        }
+                    )
+                dropdowns.append(
+                    {
+                        "id": dropdown_id,
+                        "title": source["entry_title"],
+                        "blocks": blocks,
+                        "is_open": False,
+                    }
+                )
+            else:
+                dropdowns.append(
+                    _build_dropdown_payload(
+                        source["entry_title"],
+                        source["raw_lines"],
+                        source["html_lines"],
+                        dropdown_id,
+                        is_open=False,
+                        reference_lookup=reference_lookup,
+                        pattern=pattern,
+                    )
+                )
+        payload_sections.append({"title": section["title"], "dropdowns": dropdowns})
+
+    return payload_sections
+
+
+def _with_object_type_sort_order(queryset):
+    whens = [
+        When(object_type=object_type, then=Value(index))
+        for index, object_type in enumerate(OBJECT_TYPE_SORT_ORDER)
+    ]
+    return queryset.annotate(
+        object_type_order=Case(
+            *whens,
+            default=Value(len(OBJECT_TYPE_SORT_ORDER)),
+            output_field=IntegerField(),
+        )
+    )
+
+
 def _apply_search_filters(queryset, request):
     query = request.GET.get("q", "").strip()
     object_type = request.GET.get("object_type", "").strip()
@@ -453,12 +1025,13 @@ def _apply_search_filters(queryset, request):
     if favorites_only:
         queryset = queryset.filter(favorited_by__user=request.user)
 
+    queryset = _with_object_type_sort_order(queryset)
     sort = request.GET.get("sort")
     if sort == "favorites":
         favorites = Favorite.objects.filter(user=request.user, game_object=OuterRef("pk"))
-        queryset = queryset.annotate(is_favorite=Exists(favorites)).order_by("-is_favorite", "object_type", "name")
+        queryset = queryset.annotate(is_favorite=Exists(favorites)).order_by("-is_favorite", "object_type_order", "name")
     else:
-        queryset = queryset.order_by("object_type", "name")
+        queryset = queryset.order_by("object_type_order", "name")
 
     return queryset.distinct(), {
         "q": query,
@@ -517,12 +1090,21 @@ def object_detail(request, pk):
     form = GameObjectEditForm(instance=game_object)
     games = Game.objects.order_by("title")
     is_favorite = Favorite.objects.filter(user=request.user, game_object=game_object).exists()
+    preview_context = _build_preview_context(game_object)
+    related_reference_groups = _build_related_reference_groups(game_object, preview_context)
+    reference_lookup = _build_reference_lookup(related_reference_groups)
+    reference_pattern = _compile_reference_pattern(reference_lookup)
+    _apply_inline_reference_links(preview_context, reference_lookup, reference_pattern)
+    rules_sections = _build_rules_sections(preview_context, reference_lookup, reference_pattern)
 
     context = {
         "game_object": game_object,
         "form": form,
         "games": games,
         "is_favorite": is_favorite,
+        "related_reference_groups": related_reference_groups,
+        "rules_sections": rules_sections,
+        **preview_context,
     }
     return render_page(request, "compendium/object_detail.html", context)
 
@@ -547,11 +1129,20 @@ def object_edit(request, pk):
 
     games = Game.objects.order_by("title")
     is_favorite = Favorite.objects.filter(user=request.user, game_object=game_object).exists()
+    preview_context = _build_preview_context(game_object)
+    related_reference_groups = _build_related_reference_groups(game_object, preview_context)
+    reference_lookup = _build_reference_lookup(related_reference_groups)
+    reference_pattern = _compile_reference_pattern(reference_lookup)
+    _apply_inline_reference_links(preview_context, reference_lookup, reference_pattern)
+    rules_sections = _build_rules_sections(preview_context, reference_lookup, reference_pattern)
     context = {
         "game_object": game_object,
         "form": form,
         "games": games,
         "is_favorite": is_favorite,
+        "related_reference_groups": related_reference_groups,
+        "rules_sections": rules_sections,
+        **preview_context,
     }
     return render_page(request, "compendium/object_detail.html", context)
 

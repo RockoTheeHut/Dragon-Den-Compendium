@@ -216,3 +216,69 @@ class CompendiumPaginationTests(TestCase):
         self.assertContains(response, "Subclasses")
         self.assertContains(response, "School of Evocation")
         self.assertContains(response, "<details", html=False)
+
+    def test_object_detail_links_referenced_entries_to_preview_modal(self):
+        self.client.force_login(self.user)
+        spell = GameObject.objects.create(
+            system="dnd5e",
+            object_type=GameObject.ObjectType.SPELL,
+            name="Magic Missile",
+            source=GameObject.SourceType.IMPORTED,
+            data={"level": "1", "text": ["You create darts of force."]},
+        )
+        class_obj = GameObject.objects.create(
+            system="dnd5e",
+            object_type=GameObject.ObjectType.CLASS,
+            name="Battle Mage",
+            source=GameObject.SourceType.CUSTOM,
+            description="Battle Mages are known for casting Magic Missile in close combat.",
+            data={"hd": "8"},
+        )
+
+        response = self.client.get(reverse("compendium:object_detail", args=[class_obj.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Magic Missile")
+        self.assertContains(response, f"openCompendiumPreviewModal({spell.pk})")
+        self.assertContains(response, "compendium-inline-ref")
+        self.assertNotContains(response, "Linked Entries")
+        self.assertNotContains(response, "Add To Game")
+
+
+class CompendiumSortOrderTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="sorter", password="pw12345!")
+        ordered_types = [
+            GameObject.ObjectType.BACKGROUND,
+            GameObject.ObjectType.SPELL,
+            GameObject.ObjectType.ITEM,
+            GameObject.ObjectType.FEAT,
+            GameObject.ObjectType.CLASS,
+            GameObject.ObjectType.MONSTER,
+            GameObject.ObjectType.RACE,
+        ]
+        for object_type in ordered_types:
+            GameObject.objects.create(
+                system="dnd5e",
+                object_type=object_type,
+                name=f"{object_type.title()} Entry",
+                source=GameObject.SourceType.CUSTOM,
+            )
+
+    def test_compendium_default_sort_uses_custom_type_priority(self):
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("compendium:list"))
+        self.assertEqual(response.status_code, 200)
+
+        object_types = [obj.object_type for obj in response.context["objects"]]
+        self.assertEqual(
+            object_types,
+            [
+                GameObject.ObjectType.CLASS,
+                GameObject.ObjectType.FEAT,
+                GameObject.ObjectType.ITEM,
+                GameObject.ObjectType.MONSTER,
+                GameObject.ObjectType.SPELL,
+                GameObject.ObjectType.RACE,
+                GameObject.ObjectType.BACKGROUND,
+            ],
+        )

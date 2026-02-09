@@ -1,44 +1,76 @@
-<section class="panel">
-  <div class="inline-header">
-    <h1>{{ game_object.name }}</h1>
-    <div id="favorite-button-{{ game_object.id }}">
-      {% include "compendium/partials/favorite_button.html" with game_object=game_object is_favorite=is_favorite %}
-    </div>
+<section class="panel compendium-entry-page">
+  <div class="compendium-entry-main">
+    <header class="compendium-entry-sticky">
+      <div class="compendium-entry-sticky-row">
+        <a
+          class="button ghost small"
+          href="{% url 'compendium:list' %}"
+          hx-get="{% url 'compendium:list' %}"
+          hx-target="#main-content"
+          hx-push-url="true"
+        >Back</a>
+        <h1>{{ game_object.name }}</h1>
+        <div id="favorite-button-{{ game_object.id }}">
+          {% include "compendium/partials/favorite_button.html" with game_object=game_object is_favorite=is_favorite %}
+        </div>
+      </div>
+      <p class="muted">
+        {{ game_object.get_object_type_display }} | {{ game_object.system }} | {{ game_object.source }}
+      </p>
+      {% if game_object.tags.all %}
+        <div class="compendium-entry-tag-row">
+          {% for tag in game_object.tags.all %}
+            <span class="tag-pill" style="background-color: {{ tag.color }};">{{ tag.name }}</span>
+          {% endfor %}
+        </div>
+      {% endif %}
+      <div class="rules-controls" data-rules-controls="1">
+        <button type="button" class="button ghost small" data-rules-expand-all="1">Expand All</button>
+        <button type="button" class="button ghost small" data-rules-collapse-all="1">Collapse All</button>
+      </div>
+    </header>
+
+    {% if summary_pairs %}
+      <section class="compendium-preview-section">
+        {% include "compendium/partials/rules_section_header.html" with title="Summary" %}
+        <div class="compendium-preview-grid">
+          {% for label, value in summary_pairs %}
+            <article class="compendium-preview-cell">
+              <span class="muted">{{ label }}</span>
+              <strong>{{ value }}</strong>
+            </article>
+          {% endfor %}
+        </div>
+      </section>
+    {% endif %}
+
+    {% for section in rules_sections %}
+      {% if section.dropdowns %}
+        <section class="compendium-preview-section rules-section">
+          {% include "compendium/partials/rules_section_header.html" with title=section.title %}
+          <div class="compendium-preview-stack">
+            {% for dropdown in section.dropdowns %}
+              {% include "compendium/partials/rules_dropdown.html" with dropdown=dropdown %}
+            {% endfor %}
+          </div>
+        </section>
+      {% endif %}
+    {% endfor %}
+    <section class="panel compendium-side-panel compendium-entry-tools">
+      <details>
+        <summary>Edit Object</summary>
+        <div class="compendium-side-stack">
+          <form method="post" action="{% url 'compendium:object_edit' game_object.pk %}">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <button class="button" type="submit">Save Changes</button>
+          </form>
+        </div>
+      </details>
+      <details>
+        <summary>Raw Data</summary>
+        <pre class="compendium-raw-data">{{ game_object.data|pprint }}</pre>
+      </details>
+    </section>
   </div>
-  <p><strong>System:</strong> {{ game_object.system }} | <strong>Type:</strong> {{ game_object.object_type }} | <strong>Source:</strong> {{ game_object.source }}</p>
-  <p>{{ game_object.description|default:"No description." }}</p>
-</section>
-
-<section class="panel narrow">
-  <h2>Edit Object</h2>
-  <form method="post" action="{% url 'compendium:object_edit' game_object.pk %}">
-    {% csrf_token %}
-    {{ form.as_p }}
-    <button class="button" type="submit">Save Changes</button>
-  </form>
-</section>
-
-<section class="panel narrow">
-  <h2>Add To Game</h2>
-  {% if games %}
-    <form method="post" action="{% url 'games:add_object' 0 game_object.pk %}" id="add-to-game-form">
-      {% csrf_token %}
-      <input type="hidden" name="next" value="{% url 'compendium:object_detail' game_object.pk %}">
-      <label for="game-select">Game</label>
-      <select id="game-select" name="game_id" onchange="this.form.action = '/games/' + this.value + '/add-object/{{ game_object.pk }}/';">
-        <option value="">Select game</option>
-        {% for game in games %}
-          <option value="{{ game.pk }}">{{ game.title }}</option>
-        {% endfor %}
-      </select>
-      <button class="button" type="submit">Add Copy</button>
-    </form>
-  {% else %}
-    <p>Create a game first.</p>
-  {% endif %}
-</section>
-
-<section class="panel">
-  <h2>Raw Data</h2>
-  <pre>{{ game_object.data|pprint }}</pre>
 </section>

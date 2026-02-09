@@ -1,0 +1,23 @@
+<details id="{{ dropdown.id }}" class="compendium-preview-disclosure rules-dropdown" {% if dropdown.is_open %}open{% endif %}>
+  <summary>{{ dropdown.title }}</summary>
+  <div class="compendium-preview-disclosure-body">
+    {% if dropdown.blocks %}
+      {% for block in dropdown.blocks %}
+        <section class="rules-sub-block">
+          <h4 class="rules-sub-block-title">{{ block.title }}</h4>
+          {% include "compendium/partials/rules_callout_key_rules.html" with key_rules_html=block.key_rules_html %}
+          {% include "compendium/partials/rules_bullets.html" with bullets_html=block.bullets_html %}
+          {% for paragraph in block.paragraphs_html %}
+            <p>{{ paragraph }}</p>
+          {% endfor %}
+        </section>
+      {% endfor %}
+    {% else %}
+      {% include "compendium/partials/rules_callout_key_rules.html" with key_rules_html=dropdown.key_rules_html %}
+      {% include "compendium/partials/rules_bullets.html" with bullets_html=dropdown.bullets_html %}
+      {% for paragraph in dropdown.paragraphs_html %}
+        <p>{{ paragraph }}</p>
+      {% endfor %}
+    {% endif %}
+  </div>
+</details>
