@@ -1,6 +1,6 @@
 # Dragon Den Compendium
 
-Local-first Django web app for Dungeon Masters with a global compendium, per-game object copies, turn tracking, shared notes, dice rolling, Fight Club XML import, and OpenAI text-based magic item generation.
+Open Source Local-first Django web app for Dungeon Masters with a global compendium, per-game object copies, turn tracking, shared notes, dice rolling, Fight Club XML import, and OpenAI text-based magic item generation.
 
 ## Tech Stack
 
