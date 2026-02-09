@@ -1,0 +1,121 @@
+<section class="panel">
+  <div class="inline-header">
+    <h1>Turn Tracker</h1>
+    <form method="post" action="{% url 'tracker:advance_turn' %}" hx-post="{% url 'tracker:advance_turn' %}" hx-target="#tracker-content" hx-swap="innerHTML">
+      {% csrf_token %}
+      <button class="button" type="submit">Advance Turn</button>
+    </form>
+  </div>
+  <p class="muted">Assistive only. Reorder, skip, and adjust freely at any time.</p>
+</section>
+
+<section class="panel">
+  <h2>Initiative Order</h2>
+  <form id="reorder-form" method="post" action="{% url 'tracker:reorder' %}" hx-post="{% url 'tracker:reorder' %}" hx-target="#tracker-content" hx-swap="innerHTML">
+    {% csrf_token %}
+    <input type="hidden" name="order" id="turn-order-input">
+  </form>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Order</th>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Init</th>
+          <th>HP</th>
+          <th>Items</th>
+          <th>Status Effects</th>
+          <th>Active</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="turn-entry-table" data-reorder-form="reorder-form" data-order-input="turn-order-input">
+        {% for entry in entries %}
+          <tr data-entry-id="{{ entry.id }}" class="{% if entry.is_current %}current-turn{% endif %}">
+            <td>::</td>
+            <td>
+              <strong>{{ entry.name }}</strong>
+              {% if entry.is_current %}<span class="tag-pill">Current</span>{% endif %}
+              <div class="muted">{{ entry.notes|default:"" }}</div>
+            </td>
+            <td>{{ entry.get_entry_type_display }}</td>
+            <td>{{ entry.initiative|default:"-" }}</td>
+            <td>
+              {% if entry.entry_type == "player" %}
+                -
+              {% else %}
+                {{ entry.hp_current|default:"?" }} / {{ entry.hp_max|default:"?" }}
+              {% endif %}
+            </td>
+            <td>
+              {% if entry.entry_type == "player" %}
+                -
+              {% else %}
+                {{ entry.items_text|default:"-" }}
+              {% endif %}
+            </td>
+            <td>
+              {% for effect in entry.status_effects.all %}
+                <div class="inline-form">
+                  <span>{{ effect.name }} ({{ effect.remaining_rounds }}/{{ effect.duration_rounds }}) {% if effect.is_running %}▶{% else %}⏸{% endif %}</span>
+                  <form method="post" action="{% url 'tracker:play_status_effect' effect.id %}" hx-post="{% url 'tracker:play_status_effect' effect.id %}" hx-target="#tracker-content" hx-swap="innerHTML">{% csrf_token %}<button class="button small ghost" type="submit">Play</button></form>
+                  <form method="post" action="{% url 'tracker:pause_status_effect' effect.id %}" hx-post="{% url 'tracker:pause_status_effect' effect.id %}" hx-target="#tracker-content" hx-swap="innerHTML">{% csrf_token %}<button class="button small ghost" type="submit">Pause</button></form>
+                  <form method="post" action="{% url 'tracker:reset_status_effect' effect.id %}" hx-post="{% url 'tracker:reset_status_effect' effect.id %}" hx-target="#tracker-content" hx-swap="innerHTML">{% csrf_token %}<button class="button small ghost" type="submit">Reset</button></form>
+                  <form method="post" action="{% url 'tracker:remove_status_effect' effect.id %}" hx-post="{% url 'tracker:remove_status_effect' effect.id %}" hx-target="#tracker-content" hx-swap="innerHTML">{% csrf_token %}<button class="button small danger" type="submit">X</button></form>
+                </div>
+              {% empty %}
+                <span class="muted">No effects</span>
+              {% endfor %}
+
+              <form method="post" action="{% url 'tracker:add_status_effect' entry.id %}" hx-post="{% url 'tracker:add_status_effect' entry.id %}" hx-target="#tracker-content" hx-swap="innerHTML" class="inline-form">
+                {% csrf_token %}
+                <input type="text" name="name" placeholder="Effect" required>
+                <input type="number" name="duration_rounds" min="1" value="1" required>
+                <button class="button small" type="submit">Add</button>
+              </form>
+            </td>
+            <td>{% if entry.is_active %}Yes{% else %}No{% endif %}</td>
+            <td class="inline-form">
+              <form method="post" action="{% url 'tracker:set_current' entry.id %}" hx-post="{% url 'tracker:set_current' entry.id %}" hx-target="#tracker-content" hx-swap="innerHTML">{% csrf_token %}<button class="button small ghost" type="submit">Current</button></form>
+              <form method="post" action="{% url 'tracker:move_up' entry.id %}" hx-post="{% url 'tracker:move_up' entry.id %}" hx-target="#tracker-content" hx-swap="innerHTML">{% csrf_token %}<button class="button small ghost" type="submit">Up</button></form>
+              <form method="post" action="{% url 'tracker:move_down' entry.id %}" hx-post="{% url 'tracker:move_down' entry.id %}" hx-target="#tracker-content" hx-swap="innerHTML">{% csrf_token %}<button class="button small ghost" type="submit">Down</button></form>
+              <form method="post" action="{% url 'tracker:toggle_active' entry.id %}" hx-post="{% url 'tracker:toggle_active' entry.id %}" hx-target="#tracker-content" hx-swap="innerHTML">{% csrf_token %}<button class="button small ghost" type="submit">Toggle</button></form>
+              <form method="post" action="{% url 'tracker:remove_entry' entry.id %}" hx-post="{% url 'tracker:remove_entry' entry.id %}" hx-target="#tracker-content" hx-swap="innerHTML">{% csrf_token %}<button class="button small danger" type="submit">Remove</button></form>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="9">No tracker entries yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel narrow">
+  <h2>Add Player / NPC / Enemy</h2>
+  <form method="post" action="{% url 'tracker:add_entry' %}" hx-post="{% url 'tracker:add_entry' %}" hx-target="#tracker-content" hx-swap="innerHTML" class="grid-form">
+    {% csrf_token %}
+    {{ manual_form.as_p }}
+    <button class="button" type="submit">Add Entry</button>
+  </form>
+</section>
+
+<section class="panel narrow">
+  <h2>Create NPC / Enemy From Compendium Monster</h2>
+  <form method="post" action="{% url 'tracker:add_from_compendium' %}" hx-post="{% url 'tracker:add_from_compendium' %}" hx-target="#tracker-content" hx-swap="innerHTML" class="grid-form">
+    {% csrf_token %}
+    {{ from_compendium_form.as_p }}
+    <button class="button" type="submit">Add From Monster</button>
+  </form>
+</section>
+
+<section class="panel narrow">
+  <h2>Create NPC / Enemy From Game Object Instance</h2>
+  <form method="post" action="{% url 'tracker:add_from_instance' %}" hx-post="{% url 'tracker:add_from_instance' %}" hx-target="#tracker-content" hx-swap="innerHTML" class="grid-form">
+    {% csrf_token %}
+    {{ from_instance_form.as_p }}
+    <button class="button" type="submit">Add From Game Instance</button>
+  </form>
+</section>

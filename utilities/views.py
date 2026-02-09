@@ -13,7 +13,7 @@ from compendium.models import GameObject, Tag
 from core.rendering import render_page
 from games.models import GameObjectInstance
 
-from .forms import DiceRollForm, MagicItemGeneratorForm, MagicItemSaveGameForm, MagicItemSaveGlobalForm
+from .forms import ALLOWED_DICE_SIDES, DiceToolForm, MagicItemGeneratorForm, MagicItemSaveGameForm, MagicItemSaveGlobalForm
 
 
 def _is_openai_ready():
@@ -39,7 +39,8 @@ def _generate_magic_item(payload, model):
         f"Item type: {payload['item_type']}\n"
         f"Rarity: {payload['rarity']}\n"
         f"Theme: {payload['theme']}\n"
-        f"Constraints: {payload['constraints'] or 'None'}"
+        f"Constraints: {payload['constraints'] or 'None'}\n"
+        f"More detail: {payload['more_detail'] or 'None'}"
     )
 
     response = client.responses.create(
@@ -167,22 +168,55 @@ def save_magic_item_to_game(request):
 
 
 @login_required
-@require_POST
-def dice_roll(request, game_id):
-    form = DiceRollForm(request.POST)
-    if not form.is_valid():
-        return HttpResponseBadRequest("Invalid dice input.")
+def dice_modal(request):
+    context = {"form": DiceToolForm(), "allowed_dice_sides": ALLOWED_DICE_SIDES}
+    if request.headers.get("HX-Request"):
+        return render(request, "utilities/dice_modal_content.html", context)
+    return render_page(request, "utilities/dice_modal_content.html", context)
 
-    quantity = form.cleaned_data["quantity"]
-    sides = int(form.cleaned_data["die_type"])
-    rolls = [random.randint(1, sides) for _ in range(quantity)]
+
+@login_required
+@require_POST
+def dice_roll_tool(request):
+    form = DiceToolForm(request.POST)
+    if not form.is_valid():
+        return HttpResponseBadRequest("Invalid dice input. Build a roll list with allowed dice types and quantities.")
+
+    roll_plan = form.cleaned_data["roll_plan"]
+    rolls_by_sides = {}
+    for entry in roll_plan:
+        quantity = entry["quantity"]
+        sides = entry["sides"]
+        rolls = [random.randint(1, sides) for _ in range(quantity)]
+        if sides not in rolls_by_sides:
+            rolls_by_sides[sides] = []
+        rolls_by_sides[sides].extend(rolls)
+
+    grouped_results = []
+    total = 0
+    total_dice = 0
+    for sides in ALLOWED_DICE_SIDES:
+        grouped_rolls = rolls_by_sides.get(sides, [])
+        if not grouped_rolls:
+            continue
+        subtotal = sum(grouped_rolls)
+        grouped_results.append(
+            {
+                "sides": sides,
+                "rolls": grouped_rolls,
+                "count": len(grouped_rolls),
+                "subtotal": subtotal,
+            }
+        )
+        total += subtotal
+        total_dice += len(grouped_rolls)
+
     context = {
-        "quantity": quantity,
-        "sides": sides,
-        "rolls": rolls,
-        "total": sum(rolls),
+        "grouped_results": grouped_results,
+        "total": total,
+        "total_dice": total_dice,
     }
 
     if request.headers.get("HX-Request"):
-        return render(request, "utilities/partials/dice_result.html", context)
-    return redirect("games:detail", pk=game_id)
+        return render(request, "utilities/partials/dice_tool_result.html", context)
+    return redirect("core:home")

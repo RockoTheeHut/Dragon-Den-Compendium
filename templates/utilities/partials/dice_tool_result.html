@@ -1,0 +1,16 @@
+<div class="dice-tool-summary">
+  <p><strong>Total Dice:</strong> {{ total_dice }}</p>
+  <p><strong>Total:</strong> {{ total }}</p>
+</div>
+{% for group in grouped_results %}
+  <div class="dice-group-block">
+    <p><strong>{{ group.count }}d{{ group.sides }}</strong> subtotal: {{ group.subtotal }}</p>
+    <div class="dice-roll-list">
+      {% for roll in group.rolls %}
+        <span class="die-chip {% if roll == 1 %}die-roll-one{% elif roll == 20 %}die-roll-twenty{% endif %}">d{{ group.sides }} #{{ forloop.counter }} = {{ roll }}</span>
+      {% endfor %}
+    </div>
+  </div>
+{% empty %}
+  <p class="muted">No rolls.</p>
+{% endfor %}

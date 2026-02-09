@@ -3,6 +3,7 @@
     const sidebar = document.getElementById("sidebar");
     if (!sidebar) return;
     sidebar.classList.toggle("collapsed");
+    document.body.classList.toggle("sidebar-collapsed", sidebar.classList.contains("collapsed"));
   }
 
   function toggleMobileSidebar() {
@@ -20,6 +21,11 @@
     const mobileBtn = document.getElementById("mobile-menu-btn");
     if (mobileBtn) {
       mobileBtn.onclick = toggleMobileSidebar;
+    }
+
+    const sidebar = document.getElementById("sidebar");
+    if (sidebar) {
+      document.body.classList.toggle("sidebar-collapsed", sidebar.classList.contains("collapsed"));
     }
   }
 
@@ -41,7 +47,11 @@
       onEnd: function () {
         const ids = Array.from(tableBody.querySelectorAll("tr[data-entry-id]")).map((row) => row.dataset.entryId);
         orderInput.value = ids.join(",");
-        reorderForm.submit();
+        if (window.htmx && reorderForm.getAttribute("hx-post")) {
+          window.htmx.trigger(reorderForm, "submit");
+        } else {
+          reorderForm.submit();
+        }
       },
     });
   }

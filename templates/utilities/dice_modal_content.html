@@ -1,0 +1,37 @@
+<section class="panel">
+  <h3>Roll Dice</h3>
+  <div class="inline-form">
+    <label>
+      Quantity
+      <input id="dice-add-quantity" type="number" min="1" value="1" required>
+    </label>
+    <label>
+      Die
+      <select id="dice-add-sides">
+        {% for sides in allowed_dice_sides %}
+          <option value="{{ sides }}">d{{ sides }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button id="dice-add-button" class="button ghost" type="button">Add To Roll List</button>
+  </div>
+
+  <div id="dice-plan-list" class="dice-roll-list muted">No dice added yet.</div>
+
+  <form id="dice-tool-form" method="post" action="{% url 'utilities:dice_roll_tool' %}" hx-post="{% url 'utilities:dice_roll_tool' %}" hx-target="#dice-roll-result" hx-swap="innerHTML" class="inline-form">
+    {% csrf_token %}
+    <input type="hidden" id="dice-roll-plan" name="roll_plan" value="[]">
+    <button id="dice-roll-all-button" class="button" type="submit" disabled>Roll All</button>
+  </form>
+
+  <div id="dice-roll-animation" class="dice-animation hidden" aria-live="polite">
+    <span class="rolling-die">d</span>
+    <span class="rolling-die">i</span>
+    <span class="rolling-die">c</span>
+    <span class="rolling-die">e</span>
+  </div>
+
+  <div id="dice-roll-result" class="dice-result muted">
+    Add dice groups, then roll them all at once.
+  </div>
+</section>

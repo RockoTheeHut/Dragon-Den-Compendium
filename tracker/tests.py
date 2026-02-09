@@ -1,63 +1,159 @@
 from django.contrib.auth.models import User
-from django.db import IntegrityError
 from django.test import TestCase
 from django.urls import reverse
 
-from games.models import Game
+from compendium.models import GameObject
+from games.models import Game, GameObjectInstance
 
-from .models import TurnEntry
+from .models import StatusEffect, TurnTrackerEntry
 
 
 class TurnTrackerTests(TestCase):
     def setUp(self):
-        self.user = User.objects.create_user(username="dm", password="pw")
-        self.game = Game.objects.create(title="Campaign", created_by=self.user)
+        self.user = User.objects.create_user(username="dm", password="pw12345!")
+        self.client.force_login(self.user)
 
-    def test_only_one_current_turn_entry_allowed_per_game(self):
-        TurnEntry.objects.create(
-            game=self.game,
-            entity_type=TurnEntry.EntityType.CUSTOM,
-            display_name="A",
-            is_current=True,
-            sort_order=0,
+    def test_player_entry_does_not_persist_hp_or_items(self):
+        entry = TurnTrackerEntry.objects.create(
+            user=self.user,
+            name="Aria",
+            entry_type=TurnTrackerEntry.EntryType.PLAYER,
+            hp_current=12,
+            hp_max=20,
+            items_text="Sword",
         )
 
-        with self.assertRaises(IntegrityError):
-            TurnEntry.objects.create(
-                game=self.game,
-                entity_type=TurnEntry.EntityType.CUSTOM,
-                display_name="B",
-                is_current=True,
-                sort_order=1,
-            )
+        self.assertIsNone(entry.hp_current)
+        self.assertIsNone(entry.hp_max)
+        self.assertEqual(entry.items_text, "")
 
-    def test_next_and_previous_turn_wrap(self):
-        first = TurnEntry.objects.create(
-            game=self.game,
-            entity_type=TurnEntry.EntityType.CUSTOM,
-            display_name="A",
-            is_current=True,
+    def test_add_from_compendium_creates_snapshot_copy(self):
+        monster = GameObject.objects.create(
+            system="dnd5e",
+            object_type=GameObject.ObjectType.MONSTER,
+            name="Goblin",
+            source=GameObject.SourceType.CUSTOM,
+            data={"hp": 7, "ac": 15},
+        )
+
+        response = self.client.post(
+            reverse("tracker:add_from_compendium"),
+            data={
+                "source": monster.pk,
+                "entry_type": TurnTrackerEntry.EntryType.ENEMY,
+                "name": "",
+                "initiative": 12,
+                "is_active": "on",
+                "notes": "Ambush",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        entry = TurnTrackerEntry.objects.get(user=self.user, name="Goblin")
+        self.assertEqual(entry.source_kind, TurnTrackerEntry.SourceKind.COMPENDIUM_MONSTER)
+        self.assertEqual(entry.source_snapshot.get("hp"), 7)
+
+        monster.data = {"hp": 30}
+        monster.save(update_fields=["data"])
+        entry.refresh_from_db()
+        self.assertEqual(entry.source_snapshot.get("hp"), 7)
+
+    def test_advance_turn_decrements_only_running_status_effects(self):
+        first = TurnTrackerEntry.objects.create(
+            user=self.user,
+            name="Fighter",
+            entry_type=TurnTrackerEntry.EntryType.PLAYER,
             is_active=True,
+            is_current=True,
             sort_order=0,
         )
-        second = TurnEntry.objects.create(
-            game=self.game,
-            entity_type=TurnEntry.EntityType.CUSTOM,
-            display_name="B",
-            is_current=False,
+        second = TurnTrackerEntry.objects.create(
+            user=self.user,
+            name="Orc",
+            entry_type=TurnTrackerEntry.EntryType.ENEMY,
             is_active=True,
             sort_order=1,
         )
 
-        self.client.force_login(self.user)
-        self.client.post(reverse("tracker:next_turn", args=[self.game.pk]))
+        running = StatusEffect.objects.create(
+            entry=first,
+            name="Bless",
+            duration_rounds=3,
+            remaining_rounds=3,
+            is_running=True,
+        )
+        paused = StatusEffect.objects.create(
+            entry=second,
+            name="Poisoned",
+            duration_rounds=4,
+            remaining_rounds=4,
+            is_running=False,
+        )
+
+        self.client.post(reverse("tracker:advance_turn"))
+
         first.refresh_from_db()
         second.refresh_from_db()
+        running.refresh_from_db()
+        paused.refresh_from_db()
+
         self.assertFalse(first.is_current)
         self.assertTrue(second.is_current)
+        self.assertEqual(running.remaining_rounds, 2)
+        self.assertEqual(paused.remaining_rounds, 4)
 
-        self.client.post(reverse("tracker:previous_turn", args=[self.game.pk]))
-        first.refresh_from_db()
-        second.refresh_from_db()
-        self.assertTrue(first.is_current)
-        self.assertFalse(second.is_current)
+    def test_reorder_entries_updates_sort_order(self):
+        a = TurnTrackerEntry.objects.create(
+            user=self.user,
+            name="A",
+            entry_type=TurnTrackerEntry.EntryType.PLAYER,
+            sort_order=0,
+        )
+        b = TurnTrackerEntry.objects.create(
+            user=self.user,
+            name="B",
+            entry_type=TurnTrackerEntry.EntryType.NPC,
+            sort_order=1,
+        )
+
+        self.client.post(reverse("tracker:reorder"), data={"order": f"{b.id},{a.id}"})
+
+        a.refresh_from_db()
+        b.refresh_from_db()
+        self.assertEqual(b.sort_order, 0)
+        self.assertEqual(a.sort_order, 1)
+
+    def test_add_from_game_instance_accepts_any_instance_type(self):
+        base_object = GameObject.objects.create(
+            system="dnd5e",
+            object_type=GameObject.ObjectType.ITEM,
+            name="Potion of Healing",
+            source=GameObject.SourceType.CUSTOM,
+            data={"healing": "2d4+2"},
+        )
+        game = Game.objects.create(title="Campaign", created_by=self.user)
+        instance = GameObjectInstance.objects.create(
+            game=game,
+            base_object=base_object,
+            name=base_object.name,
+            object_type=base_object.object_type,
+            description="",
+            data=base_object.data,
+        )
+
+        response = self.client.post(
+            reverse("tracker:add_from_instance"),
+            data={
+                "source": instance.pk,
+                "entry_type": TurnTrackerEntry.EntryType.NPC,
+                "name": "Alchemist",
+                "initiative": "",
+                "is_active": "on",
+                "notes": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        entry = TurnTrackerEntry.objects.get(user=self.user, name="Alchemist")
+        self.assertEqual(entry.source_kind, TurnTrackerEntry.SourceKind.GAME_INSTANCE)
+        self.assertEqual(entry.source_snapshot.get("healing"), "2d4+2")

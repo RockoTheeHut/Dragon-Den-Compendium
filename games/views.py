@@ -1,13 +1,10 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Max
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect
 from django.views.decorators.http import require_POST
 
 from core.rendering import render_page
-from tracker.forms import TurnEntryForm
-from tracker.models import TurnEntry
 
 from compendium.models import GameObject
 
@@ -36,8 +33,6 @@ def game_list(request):
 def game_detail(request, pk):
     game = get_object_or_404(Game.objects.select_related("created_by"), pk=pk)
     instances = game.object_instances.select_related("base_object").order_by("name")
-    turn_entries = game.turn_entries.select_related("object_instance")
-    turn_form = TurnEntryForm(game=game)
 
     return render_page(
         request,
@@ -45,9 +40,6 @@ def game_detail(request, pk):
         {
             "game": game,
             "instances": instances,
-            "turn_entries": turn_entries,
-            "turn_form": turn_form,
-            "dice_types": [4, 6, 8, 10, 12, 20, 100],
         },
     )
 
@@ -107,23 +99,4 @@ def remove_instance(request, game_id, instance_id):
     instance = get_object_or_404(GameObjectInstance, pk=instance_id, game=game)
     instance.delete()
     messages.success(request, "Game object removed.")
-    return redirect("games:detail", pk=game.pk)
-
-
-@login_required
-@require_POST
-def add_custom_turn_entry(request, game_id):
-    game = get_object_or_404(Game, pk=game_id)
-    form = TurnEntryForm(request.POST, game=game)
-    if form.is_valid():
-        next_sort = game.turn_entries.aggregate(max_sort=Max("sort_order")).get("max_sort")
-        entry = form.save(commit=False)
-        entry.game = game
-        entry.sort_order = (next_sort + 1) if next_sort is not None else 0
-        if entry.object_instance:
-            entry.display_name = entry.object_instance.name
-        entry.save()
-        messages.success(request, "Turn entry added.")
-    else:
-        messages.error(request, "Could not add turn entry.")
     return redirect("games:detail", pk=game.pk)

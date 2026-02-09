@@ -34,7 +34,7 @@
                   <form method="post" action="{% url 'compendium:tag_update' tag.pk %}">
                     {% csrf_token %}
                     <input type="text" name="name" value="{{ tag.name }}" required>
-                    <input type="text" name="color" value="{{ tag.color }}" required>
+                    <input type="color" name="color" value="{{ tag.color }}" required>
                     <input type="text" name="system" value="{{ tag.system }}" required>
                     <label>
                       <input type="checkbox" name="is_system_tag" {% if tag.is_system_tag %}checked{% endif %}>

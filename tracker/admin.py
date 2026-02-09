@@ -1,10 +1,23 @@
 from django.contrib import admin
 
-from .models import TurnEntry
+from .models import StatusEffect, TurnTrackerEntry
 
 
-@admin.register(TurnEntry)
-class TurnEntryAdmin(admin.ModelAdmin):
-    list_display = ("display_name", "game", "initiative", "is_current", "sort_order")
-    list_filter = ("game", "entity_type", "is_current")
-    search_fields = ("display_name",)
+class StatusEffectInline(admin.TabularInline):
+    model = StatusEffect
+    extra = 0
+
+
+@admin.register(TurnTrackerEntry)
+class TurnTrackerEntryAdmin(admin.ModelAdmin):
+    list_display = ("name", "user", "entry_type", "initiative", "is_active", "is_current", "sort_order")
+    list_filter = ("entry_type", "is_active", "is_current", "source_kind")
+    search_fields = ("name", "notes", "source_name")
+    inlines = [StatusEffectInline]
+
+
+@admin.register(StatusEffect)
+class StatusEffectAdmin(admin.ModelAdmin):
+    list_display = ("name", "entry", "remaining_rounds", "duration_rounds", "is_running")
+    list_filter = ("is_running",)
+    search_fields = ("name",)

@@ -1,5 +1,11 @@
 <section class="panel">
-  <h1>Compendium</h1>
+  <div class="inline-header">
+    <h1>Compendium</h1>
+    <div class="inline-form">
+      <a class="button small ghost" href="{% url 'compendium:object_create' %}" hx-get="{% url 'compendium:object_create' %}" hx-target="#main-content" hx-push-url="true">New Object</a>
+      <a class="button small ghost" href="{% url 'compendium:tags' %}" hx-get="{% url 'compendium:tags' %}" hx-target="#main-content" hx-push-url="true">Tags</a>
+    </div>
+  </div>
   <form method="get" class="inline-form filters-form">
     <input type="search" name="q" value="{{ active_filters.q }}" placeholder="Search...">
     <select name="object_type">

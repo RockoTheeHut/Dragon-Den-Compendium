@@ -14,16 +14,15 @@
     {% if user.is_authenticated %}
       <aside id="sidebar" class="sidebar">
         <div class="sidebar-header">
-          <button id="sidebar-toggle" class="button ghost" type="button">☰</button>
+          <button id="sidebar-toggle" class="button ghost sidebar-toggle-btn" type="button">☰</button>
           <span class="brand">Dragon Den</span>
         </div>
         <nav class="nav-links">
-          <a href="{% url 'core:home' %}" hx-get="{% url 'core:home' %}" hx-target="#main-content" hx-push-url="true" class="nav-link">Home</a>
-          <a href="{% url 'compendium:list' %}" hx-get="{% url 'compendium:list' %}" hx-target="#main-content" hx-push-url="true" class="nav-link">Compendium</a>
-          <a href="{% url 'compendium:object_create' %}" hx-get="{% url 'compendium:object_create' %}" hx-target="#main-content" hx-push-url="true" class="nav-link">New Object</a>
-          <a href="{% url 'compendium:tags' %}" hx-get="{% url 'compendium:tags' %}" hx-target="#main-content" hx-push-url="true" class="nav-link">Tags</a>
-          <a href="{% url 'games:list' %}" hx-get="{% url 'games:list' %}" hx-target="#main-content" hx-push-url="true" class="nav-link">Games</a>
-          <a href="{% url 'utilities:magic_item' %}" hx-get="{% url 'utilities:magic_item' %}" hx-target="#main-content" hx-push-url="true" class="nav-link">Magic Items</a>
+          <a href="{% url 'core:home' %}" hx-get="{% url 'core:home' %}" hx-target="#main-content" hx-push-url="true" class="nav-link"><span class="nav-link-icon">H</span><span class="nav-link-text">Home</span></a>
+          <a href="{% url 'compendium:list' %}" hx-get="{% url 'compendium:list' %}" hx-target="#main-content" hx-push-url="true" class="nav-link"><span class="nav-link-icon">C</span><span class="nav-link-text">Compendium</span></a>
+          <a href="{% url 'games:list' %}" hx-get="{% url 'games:list' %}" hx-target="#main-content" hx-push-url="true" class="nav-link"><span class="nav-link-icon">G</span><span class="nav-link-text">Games</span></a>
+          <a href="{% url 'tracker:dashboard' %}" hx-get="{% url 'tracker:dashboard' %}" hx-target="#main-content" hx-push-url="true" class="nav-link"><span class="nav-link-icon">T</span><span class="nav-link-text">Turn Tracker</span></a>
+          <a href="{% url 'utilities:magic_item' %}" hx-get="{% url 'utilities:magic_item' %}" hx-target="#main-content" hx-push-url="true" class="nav-link"><span class="nav-link-icon">I</span><span class="nav-link-text">Item Generator</span></a>
         </nav>
       </aside>
     {% endif %}
@@ -53,6 +52,7 @@
             <div id="global-search-preview" class="search-preview"></div>
           </div>
           <div class="topbar-actions">
+            <button class="button" type="button" onclick="openDiceModal()">Roll Dice</button>
             <button class="button" type="button" onclick="openNotesModal()">Scratchpad</button>
             <form method="post" action="{% url 'logout' %}">
               {% csrf_token %}
@@ -86,6 +86,16 @@
         <button class="button ghost" type="button" onclick="closeNotesModal()">Close</button>
       </div>
       <div id="notes-modal-content"></div>
+    </div>
+  </div>
+
+  <div id="dice-modal" class="modal hidden" onclick="if(event.target === this) closeDiceModal()">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Roll Dice</h2>
+        <button class="button ghost" type="button" onclick="closeDiceModal()">Close</button>
+      </div>
+      <div id="dice-modal-content"></div>
     </div>
   </div>
 
@@ -158,9 +168,115 @@
       modal.classList.add("hidden");
     }
 
+    function showDiceRolling() {
+      const animation = document.getElementById("dice-roll-animation");
+      if (!animation) return;
+      animation.classList.remove("hidden");
+      animation.classList.add("is-rolling");
+    }
+
+    function hideDiceRolling() {
+      const animation = document.getElementById("dice-roll-animation");
+      if (!animation) return;
+      animation.classList.add("hidden");
+      animation.classList.remove("is-rolling");
+    }
+
+    function wireDiceTool() {
+      const form = document.getElementById("dice-tool-form");
+      if (!form || form.dataset.bound === "1") return;
+      form.dataset.bound = "1";
+
+      const addQuantity = document.getElementById("dice-add-quantity");
+      const addSides = document.getElementById("dice-add-sides");
+      const addButton = document.getElementById("dice-add-button");
+      const planList = document.getElementById("dice-plan-list");
+      const rollPlanInput = document.getElementById("dice-roll-plan");
+      const rollAllButton = document.getElementById("dice-roll-all-button");
+
+      let rollPlan = [];
+
+      function syncPlanUi() {
+        rollPlanInput.value = JSON.stringify(rollPlan);
+        if (!rollPlan.length) {
+          planList.textContent = "No dice added yet.";
+          planList.classList.add("muted");
+          rollAllButton.disabled = true;
+          return;
+        }
+
+        planList.classList.remove("muted");
+        planList.innerHTML = rollPlan
+          .map(function (entry, index) {
+            return "<button type='button' class='die-chip roll-plan-chip' data-plan-index='" + index + "' title='Remove from roll list'>" + entry.quantity + "d" + entry.sides + " ×</button>";
+          })
+          .join("");
+        rollAllButton.disabled = false;
+      }
+
+      addButton.addEventListener("click", function () {
+        const quantity = parseInt(addQuantity.value || "0", 10);
+        const sides = parseInt(addSides.value || "0", 10);
+        if (!quantity || quantity < 1 || !sides) {
+          return;
+        }
+
+        rollPlan.push({ quantity: quantity, sides: sides });
+        addQuantity.value = "1";
+        syncPlanUi();
+      });
+
+      planList.addEventListener("click", function (event) {
+        const target = event.target.closest(".roll-plan-chip");
+        if (!target) return;
+        const index = parseInt(target.dataset.planIndex || "-1", 10);
+        if (index < 0 || index >= rollPlan.length) return;
+        rollPlan.splice(index, 1);
+        syncPlanUi();
+      });
+
+      syncPlanUi();
+
+      form.addEventListener("htmx:beforeRequest", function () {
+        showDiceRolling();
+      });
+      form.addEventListener("htmx:afterRequest", function (event) {
+        hideDiceRolling();
+        const status = event.detail && event.detail.xhr ? event.detail.xhr.status : 0;
+        if (status >= 200 && status < 300) {
+          rollPlan = [];
+          syncPlanUi();
+        }
+      });
+    }
+
+    function openDiceModal() {
+      const modal = document.getElementById("dice-modal");
+      if (!modal) return;
+      modal.classList.remove("hidden");
+      htmx.ajax("GET", "{% url 'utilities:dice_modal' %}", "#dice-modal-content");
+    }
+
+    function closeDiceModal() {
+      const modal = document.getElementById("dice-modal");
+      if (!modal) return;
+      hideDiceRolling();
+      modal.classList.add("hidden");
+    }
+
     document.body.addEventListener("htmx:afterSwap", function (event) {
       if (event.target && event.target.id === "notes-modal-content") {
         markScratchpadLoaded();
+      }
+      if (event.target && event.target.id === "dice-modal-content") {
+        wireDiceTool();
+      }
+      if (event.target && event.target.id === "dice-roll-result") {
+        hideDiceRolling();
+        event.target.classList.add("dice-result-pop");
+        setTimeout(function () {
+          event.target.classList.remove("dice-result-pop");
+        }, 350);
       }
     });
   </script>

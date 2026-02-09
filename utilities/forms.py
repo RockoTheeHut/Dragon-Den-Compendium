@@ -5,12 +5,15 @@ from django.conf import settings
 
 from games.models import Game
 
+ALLOWED_DICE_SIDES = (4, 6, 8, 10, 12, 20, 100)
+
 
 class MagicItemGeneratorForm(forms.Form):
     item_type = forms.CharField(max_length=100)
     rarity = forms.CharField(max_length=100)
     theme = forms.CharField(max_length=150)
     constraints = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 4}))
+    more_detail = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 3}))
     model = forms.ChoiceField(choices=[])
 
     def __init__(self, *args, **kwargs):
@@ -20,12 +23,40 @@ class MagicItemGeneratorForm(forms.Form):
         self.fields["model"].initial = settings.OPENAI_DEFAULT_MODEL
 
 
-class DiceRollForm(forms.Form):
-    quantity = forms.IntegerField(min_value=1, max_value=100, initial=1)
-    die_type = forms.ChoiceField(
-        choices=[(str(value), f"d{value}") for value in (4, 6, 8, 10, 12, 20, 100)],
-        initial="20",
-    )
+class DiceToolForm(forms.Form):
+    roll_plan = forms.CharField()
+
+    def clean_roll_plan(self):
+        raw_plan = self.cleaned_data.get("roll_plan", "")
+        try:
+            decoded = json.loads(raw_plan)
+        except json.JSONDecodeError as exc:
+            raise forms.ValidationError("Invalid roll plan JSON.") from exc
+
+        if not isinstance(decoded, list) or not decoded:
+            raise forms.ValidationError("Roll plan must include at least one dice entry.")
+
+        validated = []
+        for entry in decoded:
+            if not isinstance(entry, dict):
+                raise forms.ValidationError("Each roll plan entry must be an object.")
+
+            try:
+                quantity = int(entry.get("quantity"))
+                sides = int(entry.get("sides"))
+            except (TypeError, ValueError) as exc:
+                raise forms.ValidationError("Dice quantity and sides must be integers.") from exc
+
+            if quantity < 1:
+                raise forms.ValidationError("Dice quantity must be at least 1.")
+            if sides not in ALLOWED_DICE_SIDES:
+                raise forms.ValidationError(
+                    f"Unsupported die type d{sides}. Allowed: {', '.join(f'd{value}' for value in ALLOWED_DICE_SIDES)}."
+                )
+
+            validated.append({"quantity": quantity, "sides": sides})
+
+        return validated
 
 
 class MagicItemSaveGlobalForm(forms.Form):

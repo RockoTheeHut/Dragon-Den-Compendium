@@ -77,3 +77,6 @@ class TagForm(forms.ModelForm):
     class Meta:
         model = Tag
         fields = ["name", "color", "system", "is_system_tag"]
+        widgets = {
+            "color": forms.TextInput(attrs={"type": "color"}),
+        }
