@@ -9,10 +9,10 @@
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.3/Sortable.min.js"></script>
 </head>
-<body class="{% if user.is_authenticated %}is-authenticated{% else %}is-anonymous{% endif %}">
+<body class="{% if user.is_authenticated %}is-authenticated sidebar-collapsed{% else %}is-anonymous{% endif %}">
   <div class="app-shell">
     {% if user.is_authenticated %}
-      <aside id="sidebar" class="sidebar">
+      <aside id="sidebar" class="sidebar collapsed">
         <div class="sidebar-header">
           <button id="sidebar-toggle" class="button ghost sidebar-toggle-btn" type="button">☰</button>
           <span class="brand">Dragon Den</span>

@@ -48,6 +48,10 @@ body.is-anonymous .app-shell {
   border-right: 1px solid var(--border);
   background: linear-gradient(180deg, #1c2435, #151b28);
   padding: 12px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
 }
 
 .sidebar.collapsed {
@@ -148,6 +152,13 @@ body.is-anonymous .layout-right {
   gap: 12px;
   justify-content: space-between;
   margin-bottom: 14px;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: #12161f;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px;
 }
 
 body.is-anonymous .topbar {
@@ -632,9 +643,36 @@ textarea {
     position: fixed;
     inset: 0 auto 0 0;
     width: 250px;
+    height: 100vh;
     z-index: 70;
     transform: translateX(-110%);
     transition: transform 0.2s ease-in-out;
+  }
+
+  .sidebar.collapsed {
+    width: 250px;
+  }
+
+  .sidebar.collapsed .sidebar-header {
+    justify-content: flex-start;
+  }
+
+  .sidebar.collapsed .brand {
+    display: inline;
+  }
+
+  .sidebar.collapsed .nav-link {
+    justify-content: flex-start;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .sidebar.collapsed .nav-link-icon {
+    width: 18px;
+  }
+
+  .sidebar.collapsed .nav-link-text {
+    display: inline;
   }
 
   .sidebar.mobile-open {

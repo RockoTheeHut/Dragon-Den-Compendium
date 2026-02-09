@@ -19,3 +19,52 @@
     <p>No games yet. Create one from the Games section.</p>
   {% endif %}
 </section>
+
+<section class="panel">
+  <h2>Your Favorite Objects</h2>
+  {% if favorite_objects %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Fav</th>
+            <th>Name</th>
+            <th>Type</th>
+            <th>System</th>
+            <th>Source</th>
+            <th>Tags</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for favorite in favorite_objects %}
+            <tr>
+              <td id="favorite-button-{{ favorite.game_object.pk }}">
+                <form method="post" action="{% url 'compendium:toggle_favorite' favorite.game_object.pk %}" hx-post="{% url 'compendium:toggle_favorite' favorite.game_object.pk %}" hx-target="#favorite-button-{{ favorite.game_object.pk }}" hx-swap="innerHTML">
+                  {% csrf_token %}
+                  <button class="favorite-btn" type="submit" title="Toggle favorite">⭐</button>
+                </form>
+              </td>
+              <td>
+                <a href="{% url 'compendium:object_detail' favorite.game_object.pk %}" hx-get="{% url 'compendium:object_detail' favorite.game_object.pk %}" hx-target="#main-content" hx-push-url="true">
+                  {{ favorite.game_object.name }}
+                </a>
+              </td>
+              <td>{{ favorite.game_object.object_type }}</td>
+              <td>{{ favorite.game_object.system }}</td>
+              <td>{{ favorite.game_object.source }}</td>
+              <td>
+                {% for tag in favorite.game_object.tags.all %}
+                  <span class="tag-pill" style="background-color: {{ tag.color }};">{{ tag.name }}</span>
+                {% empty %}
+                  <span class="muted">No tags</span>
+                {% endfor %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p>No favorites yet. Favorite objects from the Compendium.</p>
+  {% endif %}
+</section>

@@ -109,9 +109,9 @@ LOGOUT_REDIRECT_URL = "login"
 LOGIN_URL = "login"
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-OPENAI_DEFAULT_MODEL = os.getenv("OPENAI_DEFAULT_MODEL", "gpt-4.1-mini")
+OPENAI_DEFAULT_MODEL = os.getenv("OPENAI_DEFAULT_MODEL", "gpt-5-mini")
 OPENAI_MODEL_OPTIONS = [
-    "gpt-4.1-mini",
-    "gpt-4.1",
-    "gpt-4o-mini",
+    "gpt-5-mini",
+    "gpt-5-nano",
+    "gpt-5.2",
 ]
