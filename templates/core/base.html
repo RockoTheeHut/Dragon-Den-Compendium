@@ -34,23 +34,26 @@
         {% if user.is_authenticated %}
           <div class="search-wrap">
             <form method="get" action="{% url 'compendium:search_go' %}">
-              <input
-                id="global-search"
-                class="global-search"
-                type="search"
-                name="q"
-                placeholder="Search object names..."
-                autocomplete="off"
-                hx-get="{% url 'compendium:search_preview' %}"
-                hx-trigger="keyup changed delay:250ms"
-                hx-target="#global-search-preview"
-                hx-swap="innerHTML"
-              >
+              <div class="search-input-wrap">
+                <input
+                  id="global-search"
+                  class="global-search"
+                  type="search"
+                  name="q"
+                  placeholder="Search object names..."
+                  autocomplete="off"
+                  hx-get="{% url 'compendium:search_preview' %}"
+                  hx-trigger="keyup changed delay:250ms"
+                  hx-target="#global-search-preview"
+                  hx-swap="innerHTML"
+                >
+                <button id="global-search-clear" class="search-clear" type="button" aria-label="Clear search">X</button>
+              </div>
             </form>
             <div id="global-search-preview" class="search-preview"></div>
           </div>
           <div class="topbar-actions">
-            <button class="button" type="button" onclick="openNotesModal()">Notes</button>
+            <button class="button" type="button" onclick="openNotesModal()">Scratchpad</button>
             <form method="post" action="{% url 'logout' %}">
               {% csrf_token %}
               <button class="button ghost" type="submit">Logout</button>
@@ -79,7 +82,7 @@
   <div id="notes-modal" class="modal hidden" onclick="if(event.target === this) closeNotesModal()">
     <div class="modal-content">
       <div class="modal-header">
-        <h2>Shared Notes</h2>
+        <h2>Scratchpad</h2>
         <button class="button ghost" type="button" onclick="closeNotesModal()">Close</button>
       </div>
       <div id="notes-modal-content"></div>
@@ -88,6 +91,59 @@
 
   <script src="{% static 'app.js' %}"></script>
   <script>
+    function updateScratchpadCounter() {
+      const textarea = document.getElementById("scratchpad-content");
+      const counter = document.getElementById("scratchpad-counter");
+      if (!textarea || !counter) return;
+
+      const maxLength = parseInt(counter.dataset.maxLength || "0", 10);
+      if (!maxLength) return;
+      const remaining = Math.max(maxLength - textarea.value.length, 0);
+      counter.textContent = remaining + " characters remaining";
+    }
+
+    function markScratchpadLoaded() {
+      const form = document.getElementById("scratchpad-form");
+      const textarea = document.getElementById("scratchpad-content");
+      if (!form || !textarea) return;
+      form.dataset.lastSaved = textarea.value;
+      if (textarea.dataset.counterBound !== "1") {
+        textarea.addEventListener("input", updateScratchpadCounter);
+        textarea.dataset.counterBound = "1";
+      }
+      updateScratchpadCounter();
+    }
+
+    function autosaveScratchpad() {
+      const form = document.getElementById("scratchpad-form");
+      const textarea = document.getElementById("scratchpad-content");
+      if (!form || !textarea) return;
+
+      const currentValue = textarea.value;
+      const lastSaved = form.dataset.lastSaved ?? "";
+      if (currentValue === lastSaved) return;
+
+      const csrfInput = form.querySelector("input[name='csrfmiddlewaretoken']");
+      const payload = new URLSearchParams();
+      payload.set("content", currentValue);
+      if (csrfInput) {
+        payload.set("csrfmiddlewaretoken", csrfInput.value);
+      }
+
+      fetch(form.action, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+          "HX-Request": "true"
+        },
+        body: payload.toString()
+      }).then(function () {
+        form.dataset.lastSaved = currentValue;
+      }).catch(function () {
+      });
+    }
+
     function openNotesModal() {
       const modal = document.getElementById("notes-modal");
       if (!modal) return;
@@ -98,8 +154,15 @@
     function closeNotesModal() {
       const modal = document.getElementById("notes-modal");
       if (!modal) return;
+      autosaveScratchpad();
       modal.classList.add("hidden");
     }
+
+    document.body.addEventListener("htmx:afterSwap", function (event) {
+      if (event.target && event.target.id === "notes-modal-content") {
+        markScratchpadLoaded();
+      }
+    });
   </script>
 </body>
 </html>

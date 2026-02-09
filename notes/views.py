@@ -1,25 +1,48 @@
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponseForbidden
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 
 from core.rendering import render_page
 
-from .forms import SharedNoteForm
-from .models import SharedNote
+from .models import SCRATCHPAD_MAX_LENGTH, SharedNote
+
+SCRATCHPAD_TITLE = "Scratchpad"
 
 
-def _notes_context(user):
+def _get_or_create_scratchpad(user):
+    scratchpad = (
+        SharedNote.objects.filter(
+            created_by=user,
+            title=SCRATCHPAD_TITLE,
+            visibility=SharedNote.Visibility.PRIVATE,
+        )
+        .order_by("-updated_at")
+        .first()
+    )
+    if scratchpad is not None:
+        return scratchpad
+
+    return SharedNote.objects.create(
+        title=SCRATCHPAD_TITLE,
+        content="",
+        created_by=user,
+        visibility=SharedNote.Visibility.PRIVATE,
+    )
+
+
+def _scratchpad_context(user):
+    scratchpad = _get_or_create_scratchpad(user)
     return {
-        "notes": SharedNote.objects.visible_to(user),
-        "form": SharedNoteForm(),
+        "scratchpad": scratchpad,
+        "scratchpad_max_length": SCRATCHPAD_MAX_LENGTH,
+        "scratchpad_remaining": max(SCRATCHPAD_MAX_LENGTH - len(scratchpad.content or ""), 0),
     }
 
 
 @login_required
 def modal(request):
     template = "notes/modal_content.html"
-    context = _notes_context(request.user)
+    context = _scratchpad_context(request.user)
 
     if request.headers.get("HX-Request"):
         return render(request, template, context)
@@ -28,42 +51,27 @@ def modal(request):
 
 @login_required
 @require_POST
-def create_note(request):
-    form = SharedNoteForm(request.POST)
-    if form.is_valid():
-        note = form.save(commit=False)
-        note.created_by = request.user
-        note.save()
+def save_scratchpad(request):
+    scratchpad = _get_or_create_scratchpad(request.user)
+    scratchpad.content = (request.POST.get("content") or "")[:SCRATCHPAD_MAX_LENGTH]
+    scratchpad.visibility = SharedNote.Visibility.PRIVATE
+    scratchpad.title = SCRATCHPAD_TITLE
+    scratchpad.save(update_fields=["content", "visibility", "title", "updated_at"])
 
     if request.headers.get("HX-Request"):
-        return render(request, "notes/modal_content.html", _notes_context(request.user))
+        return render(request, "notes/modal_content.html", _scratchpad_context(request.user))
     return redirect("core:home")
 
 
 @login_required
 @require_POST
-def update_note(request, pk):
-    note = get_object_or_404(SharedNote, pk=pk)
-    if note.created_by != request.user:
-        return HttpResponseForbidden("Only the note creator can edit this note.")
-
-    form = SharedNoteForm(request.POST, instance=note)
-    if form.is_valid():
-        form.save()
+def clear_scratchpad(request):
+    scratchpad = _get_or_create_scratchpad(request.user)
+    scratchpad.content = ""
+    scratchpad.visibility = SharedNote.Visibility.PRIVATE
+    scratchpad.title = SCRATCHPAD_TITLE
+    scratchpad.save(update_fields=["content", "visibility", "title", "updated_at"])
 
     if request.headers.get("HX-Request"):
-        return render(request, "notes/modal_content.html", _notes_context(request.user))
-    return redirect("core:home")
-
-
-@login_required
-@require_POST
-def delete_note(request, pk):
-    note = get_object_or_404(SharedNote, pk=pk)
-    if note.created_by != request.user:
-        return HttpResponseForbidden("Only the note creator can delete this note.")
-    note.delete()
-
-    if request.headers.get("HX-Request"):
-        return render(request, "notes/modal_content.html", _notes_context(request.user))
+        return render(request, "notes/modal_content.html", _scratchpad_context(request.user))
     return redirect("core:home")

@@ -2,12 +2,14 @@
   <ul class="search-preview-list">
     {% for object in objects %}
       <li>
-        <a href="{% url 'compendium:object_detail' object.pk %}" hx-get="{% url 'compendium:object_detail' object.pk %}" hx-target="#main-content" hx-push-url="true">
-          <strong>{{ object.name }}</strong>
-          <span class="muted">{{ object.object_type }}</span>
-          <span>
+        <a class="search-preview-row" href="{% url 'compendium:object_detail' object.pk %}" hx-get="{% url 'compendium:object_detail' object.pk %}" hx-target="#main-content" hx-push-url="true">
+          <strong class="search-preview-name">{{ object.name }}</strong>
+          <span class="search-preview-type muted">{{ object.object_type }}</span>
+          <span class="search-preview-tags">
             {% for tag in object.tags.all|slice:":3" %}
               <span class="tag-pill" style="background-color: {{ tag.color }}">{{ tag.name }}</span>
+            {% empty %}
+              <span class="muted">No tags</span>
             {% endfor %}
           </span>
         </a>

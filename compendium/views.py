@@ -36,9 +36,9 @@ def _apply_search_filters(queryset, request):
     sort = request.GET.get("sort")
     if sort == "favorites":
         favorites = Favorite.objects.filter(user=request.user, game_object=OuterRef("pk"))
-        queryset = queryset.annotate(is_favorite=Exists(favorites)).order_by("-is_favorite", "name")
+        queryset = queryset.annotate(is_favorite=Exists(favorites)).order_by("-is_favorite", "object_type", "name")
     else:
-        queryset = queryset.order_by("name")
+        queryset = queryset.order_by("object_type", "name")
 
     return queryset.distinct(), {
         "q": query,

@@ -1,43 +1,15 @@
 <section class="panel">
-  <h3>Create Note</h3>
-  <form method="post" action="{% url 'notes:create' %}" hx-post="{% url 'notes:create' %}" hx-target="#notes-modal-content" hx-swap="innerHTML">
+  <h3>Scratchpad</h3>
+  <form id="scratchpad-form" method="post" action="{% url 'notes:save' %}">
     {% csrf_token %}
-    {{ form.as_p }}
-    <button class="button" type="submit">Save Note</button>
+    <textarea id="scratchpad-content" name="content" rows="14" maxlength="{{ scratchpad_max_length }}" placeholder="Jot anything here...">{{ scratchpad.content }}</textarea>
   </form>
-</section>
-
-<section class="panel">
-  <h3>Visible Notes</h3>
-  {% if notes %}
-    {% for note in notes %}
-      <article class="note-card">
-        <h4>{{ note.title }}</h4>
-        <p class="muted">{{ note.visibility }} | {{ note.updated_at }}</p>
-        <p>{{ note.content|linebreaksbr }}</p>
-
-        {% if note.created_by_id == user.id %}
-          <details>
-            <summary>Edit</summary>
-            <form method="post" action="{% url 'notes:update' note.id %}" hx-post="{% url 'notes:update' note.id %}" hx-target="#notes-modal-content" hx-swap="innerHTML">
-              {% csrf_token %}
-              <input type="text" name="title" value="{{ note.title }}" required>
-              <textarea name="content" rows="4" required>{{ note.content }}</textarea>
-              <select name="visibility">
-                <option value="public" {% if note.visibility == 'public' %}selected{% endif %}>public</option>
-                <option value="private" {% if note.visibility == 'private' %}selected{% endif %}>private</option>
-              </select>
-              <button class="button" type="submit">Update</button>
-            </form>
-          </details>
-          <form method="post" action="{% url 'notes:delete' note.id %}" hx-post="{% url 'notes:delete' note.id %}" hx-target="#notes-modal-content" hx-swap="innerHTML">
-            {% csrf_token %}
-            <button class="button danger" type="submit">Delete</button>
-          </form>
-        {% endif %}
-      </article>
-    {% endfor %}
-  {% else %}
-    <p>No notes yet.</p>
-  {% endif %}
+  <div class="inline-form">
+    <form method="post" action="{% url 'notes:clear' %}" hx-post="{% url 'notes:clear' %}" hx-target="#notes-modal-content" hx-swap="innerHTML">
+      {% csrf_token %}
+      <button class="button danger" type="submit">Clear</button>
+    </form>
+    <span id="scratchpad-counter" class="muted" data-max-length="{{ scratchpad_max_length }}">{{ scratchpad_remaining }} characters remaining</span>
+    <span class="muted">Last saved: {{ scratchpad.updated_at }}</span>
+  </div>
 </section>
