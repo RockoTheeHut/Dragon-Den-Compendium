@@ -105,16 +105,12 @@
 
 <div id="game-player-delete-modal" class="modal hidden" onclick="if(event.target === this) closeGamePlayerDeleteModal()">
   <div class="modal-content modal-small">
-    <div class="modal-header">
-      <h3>Delete Player</h3>
-      <button class="button ghost" type="button" onclick="closeGamePlayerDeleteModal()">Close</button>
-    </div>
-    <p id="game-player-delete-copy" class="muted">Delete this player?</p>
+    <h3 id="game-player-delete-title">Delete Player</h3>
     <form id="game-player-delete-form" method="post" action="">
       {% csrf_token %}
       <div class="tracker-modal-actions">
         <button class="button ghost" type="button" onclick="closeGamePlayerDeleteModal()">Cancel</button>
-        <button class="button danger" type="submit">Delete</button>
+        <button id="game-player-delete-confirm" class="button danger" type="submit">Delete</button>
       </div>
     </form>
   </div>
@@ -139,10 +135,11 @@
             hx-target="#main-content"
             hx-push-url="true"
           >Open Tracker</a>
-          <form method="post" action="{% url 'games:delete_encounter' game.id encounter.id %}">
-            {% csrf_token %}
-            <button class="button danger small" type="submit">Delete</button>
-          </form>
+          <button
+            class="button danger small"
+            type="button"
+            onclick="openEncounterDeleteModal({{ encounter.id }}, '{{ encounter.title|escapejs }}')"
+          >Delete</button>
         </li>
       {% endfor %}
     </ul>
@@ -150,6 +147,19 @@
     <p class="muted">No encounters yet.</p>
   {% endif %}
 </section>
+
+<div id="encounter-delete-modal" class="modal hidden" onclick="if(event.target === this) closeEncounterDeleteModal()">
+  <div class="modal-content modal-small">
+    <h3 id="encounter-delete-title">Delete Encounter</h3>
+    <form id="encounter-delete-form" method="post" action="">
+      {% csrf_token %}
+      <div class="tracker-modal-actions">
+        <button class="button ghost" type="button" onclick="closeEncounterDeleteModal()">Cancel</button>
+        <button id="encounter-delete-confirm" class="button danger" type="submit">Delete</button>
+      </div>
+    </form>
+  </div>
+</div>
 
 <script>
   function openAddPlayerModal() {
@@ -197,10 +207,12 @@
   function openGamePlayerDeleteModal(playerId, playerName) {
     const modal = document.getElementById("game-player-delete-modal");
     const form = document.getElementById("game-player-delete-form");
-    const copy = document.getElementById("game-player-delete-copy");
-    if (!modal || !form || !copy) return;
+    const confirmBtn = document.getElementById("game-player-delete-confirm");
+    const title = document.getElementById("game-player-delete-title");
+    if (!modal || !form || !confirmBtn || !title) return;
     form.action = "{% url 'games:delete_player' game.id 0 %}".replace("/0/", "/" + playerId + "/");
-    copy.textContent = "Delete " + playerName + "?";
+    title.textContent = "Delete " + playerName;
+    confirmBtn.textContent = "Delete";
     if (typeof window.openAppModal === "function") {
       window.openAppModal(modal);
       return;
@@ -210,6 +222,32 @@
 
   function closeGamePlayerDeleteModal() {
     const modal = document.getElementById("game-player-delete-modal");
+    if (!modal) return;
+    if (typeof window.closeAppModal === "function") {
+      window.closeAppModal(modal);
+      return;
+    }
+    modal.classList.add("hidden");
+  }
+
+  function openEncounterDeleteModal(encounterId, encounterName) {
+    const modal = document.getElementById("encounter-delete-modal");
+    const form = document.getElementById("encounter-delete-form");
+    const confirmBtn = document.getElementById("encounter-delete-confirm");
+    const title = document.getElementById("encounter-delete-title");
+    if (!modal || !form || !confirmBtn || !title) return;
+    form.action = "{% url 'games:delete_encounter' game.id 0 %}".replace("/0/", "/" + encounterId + "/");
+    title.textContent = "Delete " + encounterName;
+    confirmBtn.textContent = "Delete";
+    if (typeof window.openAppModal === "function") {
+      window.openAppModal(modal);
+      return;
+    }
+    modal.classList.remove("hidden");
+  }
+
+  function closeEncounterDeleteModal() {
+    const modal = document.getElementById("encounter-delete-modal");
     if (!modal) return;
     if (typeof window.closeAppModal === "function") {
       window.closeAppModal(modal);

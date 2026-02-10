@@ -285,8 +285,7 @@ class TurnTrackerTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Lyra")
-        self.assertContains(response, "Armor Class:")
-        self.assertContains(response, "15")
+        self.assertContains(response, "AC 15")
         self.assertContains(response, "STR")
         self.assertContains(response, "DEX")
         self.assertContains(response, "Party scout")

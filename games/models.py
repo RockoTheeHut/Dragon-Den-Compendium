@@ -61,7 +61,6 @@ class GamePlayer(models.Model):
     name = models.CharField(max_length=255)
     notes = models.TextField(blank=True)
     ac = models.PositiveSmallIntegerField(null=True, blank=True)
-    base_stat_block = models.TextField(blank=True)
     strength = models.PositiveSmallIntegerField(null=True, blank=True)
     dexterity = models.PositiveSmallIntegerField(null=True, blank=True)
     constitution = models.PositiveSmallIntegerField(null=True, blank=True)

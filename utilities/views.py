@@ -18,6 +18,7 @@ from .forms import ALLOWED_DICE_SIDES, DiceToolForm, MagicItemGeneratorForm, Mag
 
 
 RANDOM_ITEM_HISTORY_SESSION_KEY = "random_item_picker_history_ids"
+RANDOM_ITEM_HISTORY_LIMIT = 3
 
 
 def _load_random_item_history_ids(request):
@@ -263,9 +264,9 @@ def random_item_pick(request):
     random_index = random.randint(0, item_count - 1)
     random_item = items[random_index]
     history_ids = _load_random_item_history_ids(request)
-    recent_items = _resolve_random_item_history(history_ids[:2])
+    recent_items = _resolve_random_item_history(history_ids[:RANDOM_ITEM_HISTORY_LIMIT])
     history_ids.insert(0, random_item.pk)
-    history_ids = history_ids[:2]
+    history_ids = history_ids[:RANDOM_ITEM_HISTORY_LIMIT]
     request.session[RANDOM_ITEM_HISTORY_SESSION_KEY] = history_ids
 
     return render(

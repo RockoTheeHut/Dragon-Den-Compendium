@@ -1820,19 +1820,23 @@ tbody tr:hover {
 .random-item-history-list {
   margin: 0;
   display: grid;
-  gap: 6px;
+  gap: 4px;
   padding-top: 2px;
 }
 
 .random-item-history-panel {
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
-  padding: 8px;
+  padding: 6px 8px;
   background: rgba(28, 37, 56, 0.84);
 }
 
 .random-item-history-panel p {
-  margin: 6px 0 0;
+  margin: 2px 0 0;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 @keyframes random-item-pulse {

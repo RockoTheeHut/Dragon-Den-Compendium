@@ -8,8 +8,8 @@ Built with Django + HTMX for a local-first workflow with optional Docker deploym
 Dragon Den is an all-in-one DM workspace:
 
 - Global compendium of monsters, spells, items, classes, races, feats, and backgrounds
-- Per-game object instances (copy from global, customize per campaign)
-- Turn tracker with initiative, HP, status effects, and monster quick-view modal
+- Game + Encounter workflow with reusable Game Players
+- Turn tracker with initiative, HP, status effects, monster quick-view modal, and player card popup
 - Scratchpad notes with autosave
 - Dice roller
 - Random compendium picker
@@ -21,8 +21,6 @@ All authenticated users are regular users. There is no Django admin/staff role w
 ## Visuals
 
 The project is optimized for Desktop/Laptop workflows and supports iPad-sized responsive layouts for tracker and compendium usage.
-
-[Image #1]
 
 ## Tech Stack
 

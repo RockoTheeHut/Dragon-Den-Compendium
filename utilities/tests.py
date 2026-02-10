@@ -173,7 +173,7 @@ class RandomItemPickerTests(TestCase):
         second_history_html = second_response.content.decode().split('<div id="random-item-history-region"', 1)[1]
         self.assertNotIn("Cloak of Fog", second_history_html)
 
-    def test_random_item_picker_history_is_limited_to_last_two_items(self):
+    def test_random_item_picker_history_is_limited_to_last_three_items(self):
         self.client.force_login(self.user)
         GameObject.objects.create(
             system="dnd5e",
@@ -193,16 +193,24 @@ class RandomItemPickerTests(TestCase):
             name="Mask of Echoes",
             source=GameObject.SourceType.CUSTOM,
         )
+        GameObject.objects.create(
+            system="dnd5e",
+            object_type=GameObject.ObjectType.ITEM,
+            name="Orb of Gale",
+            source=GameObject.SourceType.CUSTOM,
+        )
 
-        with patch("utilities.views.random.randint", side_effect=[0, 1, 2]):
+        with patch("utilities.views.random.randint", side_effect=[0, 1, 2, 3]):
+            self.client.post(reverse("utilities:random_item_pick"), HTTP_HX_REQUEST="true")
             self.client.post(reverse("utilities:random_item_pick"), HTTP_HX_REQUEST="true")
             self.client.post(reverse("utilities:random_item_pick"), HTTP_HX_REQUEST="true")
             response = self.client.post(reverse("utilities:random_item_pick"), HTTP_HX_REQUEST="true")
 
+        self.assertContains(response, "Mask of Echoes")
         self.assertContains(response, "Lantern of Tides")
         self.assertContains(response, "Charm of Ember")
         history_html = response.content.decode().split('<div id="random-item-history-region"', 1)[1]
-        self.assertNotIn("Mask of Echoes", history_html)
+        self.assertNotIn("Orb of Gale", history_html)
 
 
 class MagicItemSettingsTests(TestCase):

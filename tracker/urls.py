@@ -10,7 +10,6 @@ urlpatterns = [
     path("entries/add/", views.add_entry, name="add_entry"),
     path("entries/add-from-compendium/", views.add_from_compendium, name="add_from_compendium"),
     path("entries/add-from-player/", views.add_from_game_player, name="add_from_player"),
-    path("entries/add-from-instance/", views.add_from_game_player, name="add_from_instance"),
     path("entries/<int:entry_id>/edit-modal/", views.edit_entry_modal, name="edit_entry_modal"),
     path("entries/<int:entry_id>/edit/", views.edit_entry, name="edit_entry"),
     path("entries/<int:entry_id>/quick-update/", views.quick_update_entry, name="quick_update_entry"),
