@@ -10,6 +10,7 @@ hex_color_validator = RegexValidator(
 
 
 class GameObject(models.Model):
+    """Canonical compendium object shared across games and utilities."""
     class ObjectType(models.TextChoices):
         MONSTER = "monster", "Monster"
         SPELL = "spell", "Spell"
@@ -49,6 +50,7 @@ class GameObject(models.Model):
 
 
 class Tag(models.Model):
+    """Reusable metadata label scoped by system (for example dnd5e)."""
     name = models.CharField(max_length=100)
     color = models.CharField(max_length=7, validators=[hex_color_validator])
     system = models.CharField(max_length=64, db_index=True)
@@ -72,6 +74,7 @@ class Tag(models.Model):
 
 
 class GameObjectTag(models.Model):
+    """Explicit through-table joining objects and tags."""
     game_object = models.ForeignKey(GameObject, on_delete=models.CASCADE)
     tag = models.ForeignKey(Tag, on_delete=models.CASCADE)
 
@@ -85,6 +88,7 @@ class GameObjectTag(models.Model):
 
 
 class Favorite(models.Model):
+    """User bookmark for a compendium object."""
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="favorites")
     game_object = models.ForeignKey(GameObject, on_delete=models.CASCADE, related_name="favorited_by")
 
@@ -95,5 +99,3 @@ class Favorite(models.Model):
 
     def __str__(self):
         return f"{self.user} favorited {self.game_object}"
-
-# Create your models here.

@@ -9,12 +9,14 @@ SCRATCHPAD_MAX_LENGTH = SHARED_NOTE_CONTENT_MAX_LENGTH - SCRATCHPAD_CHAR_BUFFER
 
 class SharedNoteQuerySet(models.QuerySet):
     def visible_to(self, user):
+        """Return public notes for guests; public + owned notes for authenticated users."""
         if not user.is_authenticated:
             return self.filter(visibility=SharedNote.Visibility.PUBLIC)
         return self.filter(Q(visibility=SharedNote.Visibility.PUBLIC) | Q(created_by=user))
 
 
 class SharedNote(models.Model):
+    """Simple note model used for scratchpad and potentially shared notes."""
     class Visibility(models.TextChoices):
         PUBLIC = "public", "Public"
         PRIVATE = "private", "Private"

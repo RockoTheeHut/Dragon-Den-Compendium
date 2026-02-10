@@ -10,6 +10,7 @@ SCRATCHPAD_TITLE = "Scratchpad"
 
 
 def _get_or_create_scratchpad(user):
+    """Guarantee exactly one private scratchpad note per user."""
     scratchpad = (
         SharedNote.objects.filter(
             created_by=user,
@@ -31,6 +32,7 @@ def _get_or_create_scratchpad(user):
 
 
 def _scratchpad_context(user, in_modal=False):
+    """Shared template context with remaining character count."""
     scratchpad = _get_or_create_scratchpad(user)
     return {
         "scratchpad": scratchpad,
@@ -42,6 +44,7 @@ def _scratchpad_context(user, in_modal=False):
 
 @login_required
 def modal(request):
+    """Render scratchpad modal content (HTMX) or full-page fallback."""
     template = "notes/modal_content.html"
     in_modal = bool(request.headers.get("HX-Request"))
     context = _scratchpad_context(request.user, in_modal=in_modal)
@@ -54,6 +57,7 @@ def modal(request):
 @login_required
 @require_POST
 def save_scratchpad(request):
+    """Persist scratchpad text with max-length enforcement."""
     scratchpad = _get_or_create_scratchpad(request.user)
     scratchpad.content = (request.POST.get("content") or "")[:SCRATCHPAD_MAX_LENGTH]
     scratchpad.visibility = SharedNote.Visibility.PRIVATE
@@ -68,6 +72,7 @@ def save_scratchpad(request):
 @login_required
 @require_POST
 def clear_scratchpad(request):
+    """Clear scratchpad content while keeping the same backing note."""
     scratchpad = _get_or_create_scratchpad(request.user)
     scratchpad.content = ""
     scratchpad.visibility = SharedNote.Visibility.PRIVATE

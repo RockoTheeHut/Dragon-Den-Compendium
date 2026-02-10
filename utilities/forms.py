@@ -9,6 +9,7 @@ ALLOWED_DICE_SIDES = (4, 6, 8, 10, 12, 20, 100)
 
 
 class MagicItemGeneratorForm(forms.Form):
+    """Prompt fields for LLM-based magic item generation."""
     item_type = forms.CharField(max_length=100)
     rarity = forms.CharField(max_length=100)
     theme = forms.CharField(max_length=150)
@@ -24,9 +25,11 @@ class MagicItemGeneratorForm(forms.Form):
 
 
 class DiceToolForm(forms.Form):
+    """Validate the client-generated roll plan JSON payload."""
     roll_plan = forms.CharField()
 
     def clean_roll_plan(self):
+        """Parse and validate each dice-group entry."""
         raw_plan = self.cleaned_data.get("roll_plan", "")
         try:
             decoded = json.loads(raw_plan)
@@ -68,6 +71,7 @@ class MagicItemSaveGameForm(forms.Form):
     game = forms.ModelChoiceField(queryset=Game.objects.order_by("title"))
 
     def clean_generated_payload(self):
+        """Ensure generated payload remains a JSON object before persistence."""
         payload = self.cleaned_data["generated_payload"]
         try:
             data = json.loads(payload)

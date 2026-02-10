@@ -88,10 +88,18 @@ body.is-anonymous .app-shell {
 .sidebar-toggle-btn {
   width: 38px;
   height: 38px;
+  min-width: 38px;
+  max-width: 38px;
+  min-height: 38px;
+  max-height: 38px;
+  aspect-ratio: 1 / 1;
+  flex: 0 0 38px;
   padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  margin-left: 0;
+  transition: margin-left var(--motion-slow) var(--ease-standard);
 }
 
 .brand {
@@ -180,8 +188,12 @@ body.is-anonymous .app-shell {
 }
 
 .sidebar.collapsed .sidebar-header {
-  justify-content: center;
-  gap: 0;
+  justify-content: flex-start;
+  gap: 10px;
+}
+
+.sidebar.collapsed .sidebar-toggle-btn {
+  margin-left: 5px;
 }
 
 .sidebar.collapsed .brand {
@@ -191,10 +203,10 @@ body.is-anonymous .app-shell {
 }
 
 .sidebar.collapsed .nav-link {
-  justify-content: center;
+  justify-content: flex-start;
   gap: 0;
-  padding-left: 8px;
-  padding-right: 8px;
+  padding-left: 14px;
+  padding-right: 14px;
 }
 
 .sidebar.collapsed .nav-link-icon {
@@ -1682,8 +1694,8 @@ tbody tr:hover {
 
 @keyframes dice-pop {
   from {
-    transform: scale(0.98);
-    opacity: 0.5;
+    transform: scale(0.995);
+    opacity: 0.92;
   }
   to {
     transform: scale(1);
@@ -1728,18 +1740,18 @@ tbody tr:hover {
   0%,
   100% {
     transform: scale(1);
-    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(109, 159, 213, 0.18);
   }
   50% {
-    transform: scale(0.99);
-    opacity: 0.72;
+    transform: scale(0.998);
+    box-shadow: 0 0 0 2px rgba(109, 159, 213, 0.16);
   }
 }
 
 @keyframes random-item-pop {
   from {
-    opacity: 0.35;
-    transform: translateY(4px);
+    opacity: 0.92;
+    transform: translateY(2px);
   }
   to {
     opacity: 1;
@@ -1857,8 +1869,8 @@ form.htmx-request button[type="submit"] {
 
 @keyframes swap-region-rise {
   from {
-    opacity: 0.45;
-    transform: translateY(4px);
+    opacity: 0.94;
+    transform: translateY(2px);
   }
   to {
     opacity: 1;
@@ -1891,6 +1903,10 @@ form.htmx-request button[type="submit"] {
 
   .sidebar.collapsed .sidebar-header {
     justify-content: flex-start;
+  }
+
+  .sidebar.collapsed .sidebar-toggle-btn {
+    margin-left: 0;
   }
 
   .sidebar.collapsed .brand {

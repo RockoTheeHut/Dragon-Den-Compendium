@@ -7,6 +7,7 @@ from .models import TurnTrackerEntry
 
 
 class TurnTrackerEntryForm(forms.ModelForm):
+    """Base tracker entry form used for manual add/edit."""
     class Meta:
         model = TurnTrackerEntry
         fields = [
@@ -25,6 +26,7 @@ class TurnTrackerEntryForm(forms.ModelForm):
         }
 
     def clean(self):
+        """Normalize player rows by clearing non-player-only fields."""
         cleaned = super().clean()
         entry_type = cleaned.get("entry_type")
         if entry_type == TurnTrackerEntry.EntryType.PLAYER:
@@ -35,6 +37,7 @@ class TurnTrackerEntryForm(forms.ModelForm):
 
 
 class AddFromCompendiumForm(forms.Form):
+    """Create tracker entries from global monster objects."""
     source = forms.ModelChoiceField(queryset=GameObject.objects.none())
     entry_type = forms.ChoiceField(
         choices=[
@@ -56,6 +59,7 @@ class AddFromCompendiumForm(forms.Form):
 
 
 class AddFromGameInstanceForm(forms.Form):
+    """Create tracker entries from per-game object instances."""
     source = forms.ModelChoiceField(queryset=GameObjectInstance.objects.none())
     entry_type = forms.ChoiceField(
         choices=[
@@ -72,6 +76,7 @@ class AddFromGameInstanceForm(forms.Form):
     notes = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
 
     def __init__(self, *args, **kwargs):
+        """Restrict selectable instances to games owned by the current user."""
         user = kwargs.pop("user", None)
         super().__init__(*args, **kwargs)
         queryset = GameObjectInstance.objects.select_related("game").order_by("name")

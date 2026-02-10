@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Dragon Den Compendium</title>
-  <link rel="stylesheet" href="{% static 'styles.css' %}?v=phase2-polish-23">
+  <link rel="stylesheet" href="{% static 'styles.css' %}?v=phase2-polish-24">
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.3/Sortable.min.js"></script>
 </head>
@@ -18,11 +18,11 @@
           <span class="brand">Dragon Den</span>
         </div>
         <nav class="nav-links">
-          <a href="{% url 'core:home' %}" hx-get="{% url 'core:home' %}" hx-target="#main-content" hx-push-url="true" class="nav-link"><span class="nav-link-icon nav-link-icon-image-wrap"><img class="nav-link-icon-image" src="{% static 'img/home-icon.png' %}" alt="" aria-hidden="true"></span><span class="nav-link-text">Home</span></a>
-          <a href="{% url 'compendium:list' %}" hx-get="{% url 'compendium:list' %}" hx-target="#main-content" hx-push-url="true" class="nav-link"><span class="nav-link-icon nav-link-icon-image-wrap"><img class="nav-link-icon-image" src="{% static 'img/compendium-icon.png' %}" alt="" aria-hidden="true"></span><span class="nav-link-text">Compendium</span></a>
+          <a href="{% url 'core:home' %}" hx-get="{% url 'core:home' %}" hx-target="#main-content" hx-push-url="true" class="nav-link"><span class="nav-link-icon nav-link-icon-image-wrap"><img class="nav-link-icon-image" src="{% static 'icons/home-icon.png' %}" alt="" aria-hidden="true"></span><span class="nav-link-text">Home</span></a>
+          <a href="{% url 'compendium:list' %}" hx-get="{% url 'compendium:list' %}" hx-target="#main-content" hx-push-url="true" class="nav-link"><span class="nav-link-icon nav-link-icon-image-wrap"><img class="nav-link-icon-image" src="{% static 'icons/compendium-icon.png' %}" alt="" aria-hidden="true"></span><span class="nav-link-text">Compendium</span></a>
           <a href="{% url 'games:list' %}" hx-get="{% url 'games:list' %}" hx-target="#main-content" hx-push-url="true" class="nav-link"><span class="nav-link-icon">G</span><span class="nav-link-text">Games</span></a>
-          <a href="{% url 'tracker:dashboard' %}" hx-get="{% url 'tracker:dashboard' %}" hx-target="#main-content" hx-push-url="true" class="nav-link"><span class="nav-link-icon nav-link-icon-image-wrap"><img class="nav-link-icon-image" src="{% static 'img/tracker-icon.png' %}" alt="" aria-hidden="true"></span><span class="nav-link-text">Turn Tracker</span></a>
-          <a href="{% url 'utilities:magic_item' %}" hx-get="{% url 'utilities:magic_item' %}" hx-target="#main-content" hx-push-url="true" class="nav-link"><span class="nav-link-icon nav-link-icon-image-wrap"><img class="nav-link-icon-image" src="{% static 'img/item-maker-icon.png' %}" alt="" aria-hidden="true"></span><span class="nav-link-text">Item Generator</span></a>
+          <a href="{% url 'tracker:dashboard' %}" hx-get="{% url 'tracker:dashboard' %}" hx-target="#main-content" hx-push-url="true" class="nav-link"><span class="nav-link-icon nav-link-icon-image-wrap"><img class="nav-link-icon-image" src="{% static 'icons/tracker-icon.png' %}" alt="" aria-hidden="true"></span><span class="nav-link-text">Turn Tracker</span></a>
+          <a href="{% url 'utilities:magic_item' %}" hx-get="{% url 'utilities:magic_item' %}" hx-target="#main-content" hx-push-url="true" class="nav-link"><span class="nav-link-icon nav-link-icon-image-wrap"><img class="nav-link-icon-image" src="{% static 'icons/item-maker-icon.png' %}" alt="" aria-hidden="true"></span><span class="nav-link-text">Item Generator</span></a>
         </nav>
       </aside>
     {% endif %}
@@ -134,7 +134,7 @@
     {% include "compendium/partials/object_preview_modal_shell.html" %}
   {% endif %}
 
-  <script src="{% static 'app.js' %}?v=phase2-polish-23"></script>
+  <script src="{% static 'app.js' %}?v=phase2-polish-24"></script>
   <script>
     function prefersReducedMotion() {
       return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
@@ -415,20 +415,12 @@
       }
       if (event.target && event.target.id === "dice-roll-result") {
         hideDiceRolling();
-        event.target.classList.add("dice-result-pop");
-        setTimeout(function () {
-          event.target.classList.remove("dice-result-pop");
-        }, 350);
       }
       if (event.target && event.target.id === "random-item-modal-content") {
         wireRandomItemTool();
       }
       if (event.target && event.target.id === "random-item-result") {
         hideRandomItemPicking();
-        event.target.classList.add("random-item-result-pop");
-        setTimeout(function () {
-          event.target.classList.remove("random-item-result-pop");
-        }, 350);
       }
     });
 

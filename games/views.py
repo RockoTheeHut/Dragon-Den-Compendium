@@ -10,12 +10,14 @@ from .forms import GameForm, GameObjectInstanceEditForm
 from .models import Game, GameObjectInstance
 
 
-def _user_can_access_game(user, game):
+def _is_game_owner(user, game):
+    """Single ownership gate used by all game detail/mutation views."""
     return bool(user and user.is_authenticated and game.created_by_id == user.id)
 
 
 @login_required
 def game_list(request):
+    """Create/list games that belong to the requesting user."""
     if request.method == "POST":
         form = GameForm(request.POST)
         if form.is_valid():
@@ -33,8 +35,9 @@ def game_list(request):
 
 @login_required
 def game_detail(request, pk):
+    """Show one game and all of its per-campaign object instances."""
     game = get_object_or_404(Game.objects.select_related("created_by"), pk=pk)
-    if not _user_can_access_game(request.user, game):
+    if not _is_game_owner(request.user, game):
         return HttpResponseForbidden("Only the creator can view this game.")
     instances = game.object_instances.select_related("base_object").order_by("name")
 
@@ -52,7 +55,7 @@ def game_detail(request, pk):
 @require_POST
 def delete_game(request, pk):
     game = get_object_or_404(Game, pk=pk)
-    if not _user_can_access_game(request.user, game):
+    if not _is_game_owner(request.user, game):
         return HttpResponseForbidden("Only the creator can delete this game.")
 
     game.delete()
@@ -63,8 +66,9 @@ def delete_game(request, pk):
 @login_required
 @require_POST
 def edit_instance(request, game_id, instance_id):
+    """Update an instance that belongs to a game owned by the current user."""
     game = get_object_or_404(Game, pk=game_id)
-    if not _user_can_access_game(request.user, game):
+    if not _is_game_owner(request.user, game):
         return HttpResponseForbidden("Only the creator can edit this game.")
     instance = get_object_or_404(GameObjectInstance, pk=instance_id, game=game)
     form = GameObjectInstanceEditForm(request.POST, instance=instance)
@@ -79,8 +83,9 @@ def edit_instance(request, game_id, instance_id):
 @login_required
 @require_POST
 def remove_instance(request, game_id, instance_id):
+    """Delete an instance that belongs to a game owned by the current user."""
     game = get_object_or_404(Game, pk=game_id)
-    if not _user_can_access_game(request.user, game):
+    if not _is_game_owner(request.user, game):
         return HttpResponseForbidden("Only the creator can edit this game.")
     instance = get_object_or_404(GameObjectInstance, pk=instance_id, game=game)
     instance.delete()

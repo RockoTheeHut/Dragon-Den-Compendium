@@ -14,6 +14,7 @@ class GameForm(forms.ModelForm):
 
 
 class GameObjectInstanceEditForm(forms.ModelForm):
+    """Edit per-game instance fields while keeping JSON data validated."""
     data_text = JSONTextareaField(required=False, widget=forms.Textarea(attrs={"rows": 10}))
 
     class Meta:
@@ -26,6 +27,7 @@ class GameObjectInstanceEditForm(forms.ModelForm):
             self.fields["data_text"].initial = json.dumps(self.instance.data, indent=2, ensure_ascii=True)
 
     def save(self, commit=True):
+        """Persist parsed JSON textarea content back into instance data."""
         instance = super().save(commit=False)
         instance.data = self.cleaned_data.get("data_text") or {}
         if commit:

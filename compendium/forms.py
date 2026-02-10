@@ -6,6 +6,7 @@ from .models import GameObject, Tag
 
 
 class JSONTextareaField(forms.CharField):
+    """Textarea field that parses/validates JSON object input."""
     def to_python(self, value):
         value = super().to_python(value)
         if not value:
@@ -20,6 +21,7 @@ class JSONTextareaField(forms.CharField):
 
 
 class GameObjectCreateForm(forms.ModelForm):
+    """Create custom compendium objects from structured form input."""
     data_text = JSONTextareaField(required=False, widget=forms.Textarea(attrs={"rows": 10}))
     tags = forms.ModelMultipleChoiceField(
         queryset=Tag.objects.none(),
@@ -36,6 +38,7 @@ class GameObjectCreateForm(forms.ModelForm):
         self.fields["tags"].queryset = Tag.objects.order_by("name")
 
     def save(self, commit=True):
+        """Persist parsed JSON into GameObject.data and force custom source type."""
         instance = super().save(commit=False)
         instance.source = GameObject.SourceType.CUSTOM
         instance.data = self.cleaned_data.get("data_text") or {}
@@ -46,6 +49,7 @@ class GameObjectCreateForm(forms.ModelForm):
 
 
 class GameObjectEditForm(forms.ModelForm):
+    """Edit name/description/tags and structured JSON payload."""
     data_text = JSONTextareaField(required=False, widget=forms.Textarea(attrs={"rows": 12}))
     tags = forms.ModelMultipleChoiceField(
         queryset=Tag.objects.none(),
@@ -65,6 +69,7 @@ class GameObjectEditForm(forms.ModelForm):
             self.fields["tags"].initial = self.instance.tags.all()
 
     def save(self, commit=True):
+        """Persist parsed JSON into GameObject.data."""
         instance = super().save(commit=False)
         instance.data = self.cleaned_data.get("data_text") or {}
         if commit:

@@ -1,7 +1,7 @@
 import re
 
 from django.contrib.auth.decorators import login_required
-from django.db.models import F, Max
+from django.db.models import Case, F, IntegerField, Max, Value, When
 from django.http import HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, render
 from django.views.decorators.http import require_GET, require_POST
@@ -15,15 +15,16 @@ from .models import StatusEffect, TurnTrackerEntry
 
 
 def _parse_int(value):
+    """Parse common int-like strings/dicts coming from imported monster data."""
     if value is None:
         return None
     if isinstance(value, int):
         return value
     if isinstance(value, str):
-        match = re.search(r"-?\d+", value)
-        if not match:
+        number_match = re.search(r"-?\d+", value)
+        if not number_match:
             return None
-        return int(match.group(0))
+        return int(number_match.group(0))
     if isinstance(value, dict):
         for key in ("value", "max", "current", "hp", "hit_points"):
             parsed = _parse_int(value.get(key))
@@ -33,6 +34,7 @@ def _parse_int(value):
 
 
 def _extract_hp(data):
+    """Return (current_hp, max_hp) from mixed source shapes."""
     if not isinstance(data, dict):
         return None, None
 
@@ -57,6 +59,7 @@ def _extract_hp(data):
 
 
 def _entry_queryset(user):
+    """Canonical tracker ordering and prefetch strategy for list rendering."""
     return TurnTrackerEntry.objects.filter(user=user).prefetch_related("status_effects").order_by("sort_order", "id")
 
 
@@ -74,6 +77,7 @@ def _extract_snapshot_object_id(snapshot):
 
 
 def _resolve_compendium_object_for_entry(entry):
+    """Best-effort lookup for the original monster object behind an entry snapshot."""
     if entry.source_kind != TurnTrackerEntry.SourceKind.COMPENDIUM_MONSTER:
         return None
 
@@ -97,6 +101,7 @@ def _resolve_compendium_object_for_entry(entry):
 
 
 def _extract_attack_actions(monster_data):
+    """Normalize monster actions into a display-friendly attack list."""
     raw_actions = monster_data.get("action")
     if isinstance(raw_actions, dict):
         action_items = [raw_actions]
@@ -127,10 +132,8 @@ def _extract_attack_actions(monster_data):
 
 
 def _list_context(user):
-    entries = list(_entry_queryset(user))
     return {
-        "entries": entries,
-        "has_entries": bool(entries),
+        "entries": list(_entry_queryset(user)),
     }
 
 
@@ -158,14 +161,19 @@ def _render_quick_update_response(request, entry):
 
 
 def _normalize_sort_order(user):
+    """Ensure contiguous ordering and persist changes in a single bulk update."""
     entries = list(TurnTrackerEntry.objects.filter(user=user).order_by("sort_order", "id"))
+    updates = []
     for index, entry in enumerate(entries):
         if entry.sort_order != index:
             entry.sort_order = index
-            entry.save(update_fields=["sort_order"])
+            updates.append(entry)
+    if updates:
+        TurnTrackerEntry.objects.bulk_update(updates, ["sort_order"])
 
 
 def _create_status_effect_from_post(entry, post_data):
+    """Create an optional status effect from add-entry form fields."""
     name = (post_data.get("status_effect_name") or post_data.get("name") or "").strip()
     if not name:
         return
@@ -306,23 +314,23 @@ def quick_update_entry(request, entry_id):
     updated_fields = []
 
     if "initiative" in request.POST:
-        raw = (request.POST.get("initiative") or "").strip()
-        if raw == "":
+        raw_value = (request.POST.get("initiative") or "").strip()
+        if raw_value == "":
             entry.initiative = None
         else:
             try:
-                entry.initiative = int(raw)
+                entry.initiative = int(raw_value)
             except ValueError:
                 return HttpResponseBadRequest("Initiative must be an integer.")
         updated_fields.append("initiative")
 
     if "hp_current" in request.POST and entry.entry_type != TurnTrackerEntry.EntryType.PLAYER:
-        raw = (request.POST.get("hp_current") or "").strip()
-        if raw == "":
+        raw_value = (request.POST.get("hp_current") or "").strip()
+        if raw_value == "":
             entry.hp_current = None
         else:
             try:
-                entry.hp_current = int(raw)
+                entry.hp_current = int(raw_value)
             except ValueError:
                 return HttpResponseBadRequest("HP must be an integer.")
         updated_fields.append("hp_current")
@@ -335,6 +343,7 @@ def quick_update_entry(request, entry_id):
             updated_fields.append("is_current")
 
     if updated_fields:
+        # Keep update_fields deterministic and deduplicated.
         entry.save(update_fields=list(dict.fromkeys(updated_fields)))
 
     return _render_quick_update_response(request, entry)
@@ -378,14 +387,17 @@ def reorder_entries(request):
     order = request.POST.get("order", "")
     ids = [int(value) for value in order.split(",") if value.strip().isdigit()]
 
-    entries = {entry.id: entry for entry in TurnTrackerEntry.objects.filter(user=request.user, id__in=ids)}
-    for index, entry_id in enumerate(ids):
-        entry = entries.get(entry_id)
-        if entry is None:
+    position_by_id = {entry_id: index for index, entry_id in enumerate(ids)}
+    entries = list(TurnTrackerEntry.objects.filter(user=request.user, id__in=ids))
+    updates = []
+    for entry in entries:
+        new_position = position_by_id.get(entry.id)
+        if new_position is None or entry.sort_order == new_position:
             continue
-        if entry.sort_order != index:
-            entry.sort_order = index
-            entry.save(update_fields=["sort_order"])
+        entry.sort_order = new_position
+        updates.append(entry)
+    if updates:
+        TurnTrackerEntry.objects.bulk_update(updates, ["sort_order"])
 
     _normalize_sort_order(request.user)
     return _render_list_region(request)
@@ -395,14 +407,17 @@ def reorder_entries(request):
 @require_POST
 def move_up(request, entry_id):
     _normalize_sort_order(request.user)
-    entries = list(TurnTrackerEntry.objects.filter(user=request.user).order_by("sort_order", "id"))
-    for index, entry in enumerate(entries):
-        if entry.id == entry_id and index > 0:
-            prev_entry = entries[index - 1]
-            entry.sort_order, prev_entry.sort_order = prev_entry.sort_order, entry.sort_order
-            entry.save(update_fields=["sort_order"])
-            prev_entry.save(update_fields=["sort_order"])
-            break
+    entry = get_object_or_404(TurnTrackerEntry, pk=entry_id, user=request.user)
+    if entry.sort_order > 0:
+        prev_entry = TurnTrackerEntry.objects.filter(user=request.user, sort_order=entry.sort_order - 1).first()
+        if prev_entry is not None:
+            TurnTrackerEntry.objects.filter(pk__in=[entry.pk, prev_entry.pk]).update(
+                sort_order=Case(
+                    When(pk=entry.pk, then=Value(prev_entry.sort_order)),
+                    When(pk=prev_entry.pk, then=Value(entry.sort_order)),
+                    output_field=IntegerField(),
+                )
+            )
     return _render_list_region(request)
 
 
@@ -410,14 +425,16 @@ def move_up(request, entry_id):
 @require_POST
 def move_down(request, entry_id):
     _normalize_sort_order(request.user)
-    entries = list(TurnTrackerEntry.objects.filter(user=request.user).order_by("sort_order", "id"))
-    for index, entry in enumerate(entries):
-        if entry.id == entry_id and index < len(entries) - 1:
-            next_entry = entries[index + 1]
-            entry.sort_order, next_entry.sort_order = next_entry.sort_order, entry.sort_order
-            entry.save(update_fields=["sort_order"])
-            next_entry.save(update_fields=["sort_order"])
-            break
+    entry = get_object_or_404(TurnTrackerEntry, pk=entry_id, user=request.user)
+    next_entry = TurnTrackerEntry.objects.filter(user=request.user, sort_order=entry.sort_order + 1).first()
+    if next_entry is not None:
+        TurnTrackerEntry.objects.filter(pk__in=[entry.pk, next_entry.pk]).update(
+            sort_order=Case(
+                When(pk=entry.pk, then=Value(next_entry.sort_order)),
+                When(pk=next_entry.pk, then=Value(entry.sort_order)),
+                output_field=IntegerField(),
+            )
+        )
     return _render_list_region(request)
 
 

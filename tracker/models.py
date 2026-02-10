@@ -4,6 +4,7 @@ from django.db.models import Q
 
 
 class TurnTrackerEntry(models.Model):
+    """One initiative-row entity in a user's turn tracker."""
     class EntryType(models.TextChoices):
         PLAYER = "player", "Player"
         NPC = "npc", "NPC"
@@ -46,6 +47,7 @@ class TurnTrackerEntry(models.Model):
         ]
 
     def save(self, *args, **kwargs):
+        """Players do not track shared HP/items in this tracker representation."""
         if self.entry_type == self.EntryType.PLAYER:
             self.hp_current = None
             self.hp_max = None
@@ -57,6 +59,7 @@ class TurnTrackerEntry(models.Model):
 
 
 class StatusEffect(models.Model):
+    """Round-based effect tied to a tracker entry."""
     entry = models.ForeignKey(TurnTrackerEntry, on_delete=models.CASCADE, related_name="status_effects")
     name = models.CharField(max_length=120)
     duration_rounds = models.PositiveIntegerField()

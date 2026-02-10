@@ -2,6 +2,7 @@ from django.shortcuts import render
 
 
 def render_page(request, template_name, context=None):
+    """Render HTMX partials directly, otherwise wrap inside the full page shell."""
     context = context or {}
     if request.headers.get("HX-Request"):
         return render(request, template_name, context)

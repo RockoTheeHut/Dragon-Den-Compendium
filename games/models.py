@@ -5,6 +5,7 @@ from compendium.models import GameObject
 
 
 class Game(models.Model):
+    """A DM-owned campaign/workspace that contains object instances."""
     title = models.CharField(max_length=255)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="games")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -18,6 +19,7 @@ class Game(models.Model):
 
 
 class GameObjectInstance(models.Model):
+    """Per-game snapshot/copy of a base compendium object."""
     game = models.ForeignKey(Game, on_delete=models.CASCADE, related_name="object_instances")
     base_object = models.ForeignKey(GameObject, on_delete=models.CASCADE, related_name="game_instances")
     name = models.CharField(max_length=255)

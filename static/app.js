@@ -1,5 +1,28 @@
 (function () {
   const SWAP_ANIMATION_CLASS = "swap-region-pop";
+
+  function bindInteractiveWidgets() {
+    wireButtons();
+    wireTurnSorting();
+    wireGlobalSearch();
+    wireTrackerTabs();
+    wireTrackerEntryTypeForms();
+    wireFilterSelectInputs();
+    wireRulesSectionControls();
+  }
+
+  function openModalAndLoad(modalId, contentSelector, url) {
+    const modal = document.getElementById(modalId);
+    const target = document.querySelector(contentSelector);
+    if (!modal || !target || !window.htmx) return;
+    if (typeof window.openAppModal === "function") {
+      window.openAppModal(modal);
+    } else {
+      modal.classList.remove("hidden");
+    }
+    window.htmx.ajax("GET", url, contentSelector);
+  }
+
   function animateSwapTarget(target) {
     if (!target) return;
     target.classList.remove(SWAP_ANIMATION_CLASS);
@@ -183,63 +206,35 @@
   }
 
   function openTrackerAddModal() {
-    const modal = document.getElementById("tracker-add-modal");
-    const target = document.getElementById("tracker-add-modal-content");
-    if (!modal || !target || !window.htmx) return;
-    if (typeof window.openAppModal === "function") {
-      window.openAppModal(modal);
-    } else {
-      modal.classList.remove("hidden");
-    }
-    window.htmx.ajax("GET", "/tracker/entries/add-modal/", "#tracker-add-modal-content");
+    openModalAndLoad("tracker-add-modal", "#tracker-add-modal-content", "/tracker/entries/add-modal/");
   }
 
   function openTrackerEditModal(entryId) {
-    const modal = document.getElementById("tracker-edit-modal");
-    const target = document.getElementById("tracker-edit-modal-content");
-    if (!modal || !target || !window.htmx) return;
-    if (typeof window.openAppModal === "function") {
-      window.openAppModal(modal);
-    } else {
-      modal.classList.remove("hidden");
-    }
-    window.htmx.ajax("GET", "/tracker/entries/" + entryId + "/edit-modal/", "#tracker-edit-modal-content");
+    openModalAndLoad("tracker-edit-modal", "#tracker-edit-modal-content", "/tracker/entries/" + entryId + "/edit-modal/");
   }
 
   function openTrackerStatusModal(entryId) {
-    const modal = document.getElementById("tracker-status-modal");
-    const target = document.getElementById("tracker-status-modal-content");
-    if (!modal || !target || !window.htmx) return;
-    if (typeof window.openAppModal === "function") {
-      window.openAppModal(modal);
-    } else {
-      modal.classList.remove("hidden");
-    }
-    window.htmx.ajax("GET", "/tracker/entries/" + entryId + "/status/modal/", "#tracker-status-modal-content");
+    openModalAndLoad(
+      "tracker-status-modal",
+      "#tracker-status-modal-content",
+      "/tracker/entries/" + entryId + "/status/modal/"
+    );
   }
 
   function openTrackerMonsterModal(entryId) {
-    const modal = document.getElementById("tracker-monster-modal");
-    const target = document.getElementById("tracker-monster-modal-content");
-    if (!modal || !target || !window.htmx) return;
-    if (typeof window.openAppModal === "function") {
-      window.openAppModal(modal);
-    } else {
-      modal.classList.remove("hidden");
-    }
-    window.htmx.ajax("GET", "/tracker/entries/" + entryId + "/monster/modal/", "#tracker-monster-modal-content");
+    openModalAndLoad(
+      "tracker-monster-modal",
+      "#tracker-monster-modal-content",
+      "/tracker/entries/" + entryId + "/monster/modal/"
+    );
   }
 
   function openCompendiumPreviewModal(objectId) {
-    const modal = document.getElementById("compendium-preview-modal");
-    const target = document.getElementById("compendium-preview-modal-content");
-    if (!modal || !target || !window.htmx) return;
-    if (typeof window.openAppModal === "function") {
-      window.openAppModal(modal);
-    } else {
-      modal.classList.remove("hidden");
-    }
-    window.htmx.ajax("GET", "/compendium/" + objectId + "/preview/modal/", "#compendium-preview-modal-content");
+    openModalAndLoad(
+      "compendium-preview-modal",
+      "#compendium-preview-modal-content",
+      "/compendium/" + objectId + "/preview/modal/"
+    );
   }
 
   function closeCompendiumPreviewModal() {
@@ -406,13 +401,7 @@
   }
 
   document.addEventListener("DOMContentLoaded", function () {
-    wireButtons();
-    wireTurnSorting();
-    wireGlobalSearch();
-    wireTrackerTabs();
-    wireTrackerEntryTypeForms();
-    wireFilterSelectInputs();
-    wireRulesSectionControls();
+    bindInteractiveWidgets();
   });
 
   document.body.addEventListener("htmx:afterSwap", function (event) {
@@ -420,13 +409,7 @@
       animateSwapTarget(event.target);
     }
     scrollToTopForCompendiumDetailSwap(event);
-    wireButtons();
-    wireTurnSorting();
-    wireGlobalSearch();
-    wireTrackerTabs();
-    wireTrackerEntryTypeForms();
-    wireFilterSelectInputs();
-    wireRulesSectionControls();
+    bindInteractiveWidgets();
   });
 
   document.body.addEventListener("compendiumReloadRequested", function () {

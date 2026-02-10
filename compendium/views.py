@@ -4,9 +4,10 @@ from urllib.parse import urlencode
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import Case, Exists, IntegerField, OuterRef, Value, When
+from django.db.models import Case, Exists, IntegerField, OuterRef, Prefetch, Value, When
 from django.http import HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils.html import escape, format_html
 from django.utils.safestring import mark_safe
 from django.views.decorators.http import require_GET, require_POST
@@ -1035,6 +1036,7 @@ def _with_object_type_sort_order(queryset):
 
 
 def _apply_search_filters(queryset, request):
+    """Apply list filters/sorting and return both queryset and serialized filter state."""
     query = request.GET.get("q", "").strip()
     object_type = request.GET.get("object_type", "").strip()
     tag_id = request.GET.get("tag", "").strip()
@@ -1071,13 +1073,20 @@ def _apply_search_filters(queryset, request):
 
 @login_required
 def object_list(request):
-    objects = GameObject.objects.prefetch_related("tags")
+    """Paginated compendium list with tag/favorite metadata for the current page."""
+    objects = (
+        GameObject.objects.only("id", "name", "object_type", "system", "source")
+        .prefetch_related(Prefetch("tags", queryset=Tag.objects.only("id", "name", "color").order_by("name")))
+    )
     objects, active_filters = _apply_search_filters(objects, request)
-    tags = Tag.objects.order_by("name")
-    favorites = set(Favorite.objects.filter(user=request.user).values_list("game_object_id", flat=True))
+    tags = Tag.objects.only("id", "name").order_by("name")
     paginator = Paginator(objects, 100)
     page_number = request.GET.get("page", 1)
     page_obj = paginator.get_page(page_number)
+    page_object_ids = [item.id for item in page_obj.object_list]
+    favorites = set(
+        Favorite.objects.filter(user=request.user, game_object_id__in=page_object_ids).values_list("game_object_id", flat=True)
+    )
     scroll_query = urlencode(active_filters)
 
     context = {
@@ -1113,32 +1122,17 @@ def object_create(request):
 
 @login_required
 def object_detail(request, pk):
+    """Full object detail page with parsed rules/preview context."""
     game_object = get_object_or_404(GameObject.objects.prefetch_related("tags"), pk=pk)
     form = GameObjectEditForm(instance=game_object)
-    games = Game.objects.order_by("title")
-    is_favorite = Favorite.objects.filter(user=request.user, game_object=game_object).exists()
-    preview_context = _build_preview_context(game_object)
-    related_reference_groups = _build_related_reference_groups(game_object, preview_context)
-    reference_lookup = _build_reference_lookup(related_reference_groups)
-    reference_pattern = _compile_reference_pattern(reference_lookup)
-    _apply_inline_reference_links(preview_context, reference_lookup, reference_pattern)
-    rules_sections = _build_rules_sections(preview_context, reference_lookup, reference_pattern)
-
-    context = {
-        "game_object": game_object,
-        "form": form,
-        "games": games,
-        "is_favorite": is_favorite,
-        "related_reference_groups": related_reference_groups,
-        "rules_sections": rules_sections,
-        **preview_context,
-    }
+    context = _build_object_detail_context(game_object=game_object, form=form, user=request.user)
     return render_page(request, "compendium/object_detail.html", context)
 
 
 @login_required
 @require_GET
 def object_preview_modal(request, pk):
+    """Lightweight preview content loaded into the shared modal shell."""
     game_object = get_object_or_404(GameObject, pk=pk)
     context = _build_preview_context(game_object)
     return render(request, "compendium/partials/object_preview_modal_content.html", context)
@@ -1154,23 +1148,7 @@ def object_edit(request, pk):
         messages.success(request, "Game object updated.")
         return redirect("compendium:object_detail", pk=pk)
 
-    games = Game.objects.order_by("title")
-    is_favorite = Favorite.objects.filter(user=request.user, game_object=game_object).exists()
-    preview_context = _build_preview_context(game_object)
-    related_reference_groups = _build_related_reference_groups(game_object, preview_context)
-    reference_lookup = _build_reference_lookup(related_reference_groups)
-    reference_pattern = _compile_reference_pattern(reference_lookup)
-    _apply_inline_reference_links(preview_context, reference_lookup, reference_pattern)
-    rules_sections = _build_rules_sections(preview_context, reference_lookup, reference_pattern)
-    context = {
-        "game_object": game_object,
-        "form": form,
-        "games": games,
-        "is_favorite": is_favorite,
-        "related_reference_groups": related_reference_groups,
-        "rules_sections": rules_sections,
-        **preview_context,
-    }
+    context = _build_object_detail_context(game_object=game_object, form=form, user=request.user)
     return render_page(request, "compendium/object_detail.html", context)
 
 
@@ -1235,7 +1213,8 @@ def search_preview(request):
 
     objects = (
         GameObject.objects.filter(name__icontains=query)
-        .prefetch_related("tags")
+        .only("id", "name", "object_type")
+        .prefetch_related(Prefetch("tags", queryset=Tag.objects.only("id", "name", "color").order_by("name")))
         .order_by("name")[:8]
     )
     return render_page(request, "compendium/partials/search_preview.html", {"objects": objects})
@@ -1247,7 +1226,7 @@ def quick_search_redirect(request):
     query = request.GET.get("q", "").strip()
     if not query:
         return redirect("compendium:list")
-    return redirect(f"/compendium/?q={query}")
+    return redirect(f"{reverse('compendium:list')}?{urlencode({'q': query})}")
 
 
 @login_required
@@ -1259,3 +1238,22 @@ def remove_tag(request, pk):
     tag.delete()
     messages.success(request, "Tag deleted.")
     return redirect("compendium:tags")
+
+
+def _build_object_detail_context(game_object, form, user):
+    """Assemble reusable detail context for both GET detail and invalid edit POST."""
+    preview_context = _build_preview_context(game_object)
+    related_reference_groups = _build_related_reference_groups(game_object, preview_context)
+    reference_lookup = _build_reference_lookup(related_reference_groups)
+    reference_pattern = _compile_reference_pattern(reference_lookup)
+    _apply_inline_reference_links(preview_context, reference_lookup, reference_pattern)
+    rules_sections = _build_rules_sections(preview_context, reference_lookup, reference_pattern)
+    return {
+        "game_object": game_object,
+        "form": form,
+        "games": Game.objects.only("id", "title").order_by("title"),
+        "is_favorite": Favorite.objects.filter(user=user, game_object=game_object).exists(),
+        "related_reference_groups": related_reference_groups,
+        "rules_sections": rules_sections,
+        **preview_context,
+    }

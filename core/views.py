@@ -23,16 +23,27 @@ from .rendering import render_page
 
 
 def healthz(_request):
+    """Lightweight container/orchestrator health endpoint."""
     return JsonResponse({"status": "ok"})
 
 
 @login_required
 def home(request):
-    recent_games = Game.objects.filter(created_by=request.user)[:5]
+    """Dashboard landing data for the authenticated user."""
+    recent_games = Game.objects.filter(created_by=request.user).only("id", "title")[:5]
     favorite_objects = (
         Favorite.objects.filter(user=request.user)
         .select_related("game_object")
         .prefetch_related("game_object__tags")
+        .only(
+            "id",
+            "game_object_id",
+            "game_object__id",
+            "game_object__name",
+            "game_object__object_type",
+            "game_object__system",
+            "game_object__source",
+        )
         .order_by("-id")[:8]
     )
     return render_page(
@@ -70,6 +81,7 @@ def settings_modal(request):
 
 
 def _render_settings_modal_response(request, context, trigger_compendium_reload=False):
+    """Return HTMX modal HTML or a full-page fallback redirect."""
     if request.headers.get("HX-Request"):
         response = render(request, "core/settings_modal_content.html", context)
         if trigger_compendium_reload:
@@ -79,6 +91,7 @@ def _render_settings_modal_response(request, context, trigger_compendium_reload=
 
 
 def _settings_context(request, settings_form=None, upload_form=None, import_result_message=""):
+    """Build a consistent context payload for all settings modal responses."""
     in_modal = bool(request.headers.get("HX-Request"))
     user_settings = UserSettings.for_user(request.user)
     server_xml_path = (settings.SERVER_COMPENDIUM_XML_PATH or "").strip()
@@ -127,8 +140,10 @@ def save_settings(request):
 @login_required
 @require_POST
 def import_user_compendium_xml(request):
+    """Import XML from either user upload or a configured server-side path."""
     upload_form = CompendiumUploadImportForm(request.POST, request.FILES)
     import_result_message = ""
+    temp_path = None
 
     if upload_form.is_valid():
         use_server_xml = bool(upload_form.cleaned_data.get("use_server_xml"))
@@ -143,8 +158,8 @@ def import_user_compendium_xml(request):
             import_path = Path(server_xml_path)
         else:
             uploaded_file = upload_form.cleaned_data["xml_file"]
-            temp_path = None
             try:
+                # Persist upload to a temporary file because the importer expects a filesystem path.
                 with tempfile.NamedTemporaryFile(prefix="user-compendium-", suffix=".xml", delete=False) as temp_file:
                     for chunk in uploaded_file.chunks():
                         temp_file.write(chunk)
@@ -174,7 +189,8 @@ def import_user_compendium_xml(request):
             import_result_message = f"Import failed: {exc}"
             messages.error(request, import_result_message)
         finally:
-            if not use_server_xml and "temp_path" in locals() and temp_path and temp_path.exists():
+            # Always remove temporary uploads after import attempts.
+            if not use_server_xml and temp_path and temp_path.exists():
                 try:
                     os.unlink(temp_path)
                 except OSError:
@@ -191,6 +207,7 @@ def import_user_compendium_xml(request):
 @login_required
 @require_POST
 def remove_user_imported_xml(request):
+    """Remove imported objects owned by the current user while preserving shared imports."""
     mappings = UserImportedObject.objects.filter(user=request.user)
     mapped_object_ids = list(mappings.values_list("game_object_id", flat=True))
     if not mapped_object_ids:

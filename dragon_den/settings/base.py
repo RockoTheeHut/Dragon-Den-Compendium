@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 try:
@@ -25,8 +26,18 @@ def _load_dotenv(path):
 
 _load_dotenv(BASE_DIR / ".env")
 
+
+def _env_bool(name, default=False):
+    raw = os.getenv(name)
+    if raw is None:
+        return bool(default)
+    return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-only-secret-key-change-me")
-DEBUG = os.getenv("DEBUG", "false").lower() == "true"
+DEBUG = _env_bool("DEBUG", default=False)
+REQUIRE_STRONG_SECRET_KEY = _env_bool("REQUIRE_STRONG_SECRET_KEY", default=False)
+if REQUIRE_STRONG_SECRET_KEY and SECRET_KEY in {"", "replace-me", "replace-me-in-production", "dev-only-secret-key-change-me"}:
+    raise ImproperlyConfigured("Set a strong SECRET_KEY for non-debug deployments.")
 
 ALLOWED_HOSTS = [host.strip() for host in os.getenv("ALLOWED_HOSTS", "127.0.0.1,localhost").split(",") if host.strip()]
 
@@ -69,7 +80,6 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
-                "core.context_processors.ui_settings",
             ],
         },
     },
@@ -129,6 +139,14 @@ SERVER_COMPENDIUM_XML_PATH = os.getenv("SERVER_COMPENDIUM_XML_PATH", "")
 SERVER_COMPENDIUM_SYSTEM = os.getenv("SERVER_COMPENDIUM_SYSTEM", "dnd5e")
 
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+SECURE_SSL_REDIRECT = _env_bool("SECURE_SSL_REDIRECT", default=False)
+SESSION_COOKIE_SECURE = _env_bool("SESSION_COOKIE_SECURE", default=False)
+CSRF_COOKIE_SECURE = _env_bool("CSRF_COOKIE_SECURE", default=False)
+SECURE_HSTS_SECONDS = int(os.getenv("SECURE_HSTS_SECONDS", "0"))
+SECURE_HSTS_INCLUDE_SUBDOMAINS = _env_bool("SECURE_HSTS_INCLUDE_SUBDOMAINS", default=False)
+SECURE_HSTS_PRELOAD = _env_bool("SECURE_HSTS_PRELOAD", default=False)
+SECURE_CONTENT_TYPE_NOSNIFF = _env_bool("SECURE_CONTENT_TYPE_NOSNIFF", default=True)
+SECURE_REFERRER_POLICY = os.getenv("SECURE_REFERRER_POLICY", "same-origin")
 CSRF_TRUSTED_ORIGINS = [
     origin.strip() for origin in os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",") if origin.strip()
 ]

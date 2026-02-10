@@ -21,6 +21,7 @@ RANDOM_ITEM_HISTORY_SESSION_KEY = "random_item_picker_history_ids"
 
 
 def _load_random_item_history_ids(request):
+    """Load and sanitize recent random-pick IDs from session storage."""
     raw_values = request.session.get(RANDOM_ITEM_HISTORY_SESSION_KEY, [])
     if not isinstance(raw_values, list):
         return []
@@ -37,7 +38,8 @@ def _load_random_item_history_ids(request):
 
 
 def _resolve_random_item_history(history_ids):
-    history_items = GameObject.objects.filter(pk__in=history_ids)
+    """Resolve IDs to objects while preserving original order."""
+    history_items = GameObject.objects.filter(pk__in=history_ids).only("id", "name", "object_type", "system", "source")
     items_by_id = {item.pk: item for item in history_items}
     return [items_by_id[item_id] for item_id in history_ids if item_id in items_by_id]
 
@@ -51,6 +53,7 @@ def _is_openai_ready(user):
 
 
 def _extract_json(text):
+    """Extract the first JSON object from model output text."""
     start = text.find("{")
     end = text.rfind("}")
     if start == -1 or end == -1 or end <= start:
@@ -59,6 +62,7 @@ def _extract_json(text):
 
 
 def _generate_magic_item(payload, model, api_key):
+    """Call OpenAI and normalize the generated item payload."""
     client = OpenAI(api_key=api_key)
     instructions = (
         "You create tabletop RPG magic items. "
@@ -73,14 +77,14 @@ def _generate_magic_item(payload, model, api_key):
         f"More detail: {payload['more_detail'] or 'None'}"
     )
 
-    response = client.responses.create(
+    model_response = client.responses.create(
         model=model,
         input=[
             {"role": "system", "content": instructions},
             {"role": "user", "content": user_prompt},
         ],
     )
-    output_text = response.output_text
+    output_text = model_response.output_text
     generated = _extract_json(output_text)
 
     generated.setdefault("name", "Unnamed Magic Item")
@@ -92,6 +96,7 @@ def _generate_magic_item(payload, model, api_key):
 
 
 def _build_magic_item_from_payload(generated):
+    """Persist generated output as a custom compendium item."""
     description = generated.get("description", "")
     mechanics = generated.get("mechanics", "")
     return GameObject.objects.create(
@@ -109,6 +114,7 @@ def _build_magic_item_from_payload(generated):
 
 
 def _attach_tags(game_object, tag_names, user):
+    """Create missing tags and attach all generated tags to the object."""
     for tag_name in tag_names:
         tag, _ = Tag.objects.get_or_create(
             system=game_object.system,
@@ -124,12 +130,16 @@ def _attach_tags(game_object, tag_names, user):
 
 @login_required
 def magic_item_generator(request):
+    """Render generator UI and optionally run one generation request."""
     generated = None
     generated_json = ""
+    form = MagicItemGeneratorForm(request.POST or None)
+    save_global_form = MagicItemSaveGlobalForm()
+    save_game_form = MagicItemSaveGameForm()
+    openai_ready = _is_openai_ready(request.user)
     if request.method == "POST":
-        form = MagicItemGeneratorForm(request.POST)
         if form.is_valid():
-            if not _is_openai_ready(request.user):
+            if not openai_ready:
                 messages.error(
                     request,
                     "OpenAI is not configured for your account. Save a key in Settings or set OPENAI_API_KEY and OPENAI_DEFAULT_MODEL.",
@@ -144,12 +154,6 @@ def magic_item_generator(request):
                     generated_json = json.dumps(generated)
                 except Exception as exc:  # noqa: BLE001
                     messages.error(request, f"Generation failed: {exc}")
-        save_global_form = MagicItemSaveGlobalForm()
-        save_game_form = MagicItemSaveGameForm()
-    else:
-        form = MagicItemGeneratorForm()
-        save_global_form = MagicItemSaveGlobalForm()
-        save_game_form = MagicItemSaveGameForm()
 
     return render_page(
         request,
@@ -159,7 +163,7 @@ def magic_item_generator(request):
             "generated": generated,
             "save_global_form": save_global_form,
             "save_game_form": save_game_form,
-            "openai_ready": _is_openai_ready(request.user),
+            "openai_ready": openai_ready,
             "generated_json": generated_json,
         },
     )
@@ -233,6 +237,7 @@ def random_item_modal(request):
 @login_required
 @require_POST
 def random_item_pick(request):
+    """Pick one random object with optional type filter and short pick history."""
     selected_object_type = request.POST.get("object_type", GameObject.ObjectType.ITEM).strip()
     allowed_object_types = {value for value, _label in GameObject.ObjectType.choices}
     if selected_object_type and selected_object_type not in allowed_object_types:
@@ -241,7 +246,7 @@ def random_item_pick(request):
     items = GameObject.objects.all()
     if selected_object_type:
         items = items.filter(object_type=selected_object_type)
-    items = items.order_by("id")
+    items = items.only("id", "name", "object_type", "system", "source").order_by("id")
     item_count = items.count()
     if item_count == 0:
         recent_items = _resolve_random_item_history(_load_random_item_history_ids(request))
@@ -277,6 +282,7 @@ def random_item_pick(request):
 @login_required
 @require_POST
 def dice_roll_tool(request):
+    """Roll grouped dice plans and return aggregated per-die-type totals."""
     form = DiceToolForm(request.POST)
     if not form.is_valid():
         return HttpResponseBadRequest("Invalid dice input. Build a roll list with allowed dice types and quantities.")

@@ -20,24 +20,9 @@ All authenticated users are regular users. There is no Django admin/staff role w
 
 ## Visuals
 
-Real screenshots from the current app:
+The project is optimized for Desktop/Laptop workflows and supports iPad-sized responsive layouts for tracker and compendium usage.
 
-### Home
-![Dragon Den Home](docs/images/home.png)
-
-### Compendium
-![Dragon Den Compendium](docs/images/compendium.png)
-
-### Turn Tracker (Desktop/Laptop)
-![Dragon Den Tracker Desktop](docs/images/tracker.png)
-
-### Turn Tracker (iPad Layout)
-![Dragon Den Tracker iPad](docs/images/tracker-ipad.png)
-
-Brand/asset art in repo:
-
-![Dragon Den House Art](house.png)
-![Sea Dragon Art](sea-dragon.png)
+[Image #1]
 
 ## Tech Stack
 
@@ -94,10 +79,15 @@ Important variables:
 - `ALLOWED_HOSTS` (comma-separated)
 - `CSRF_TRUSTED_ORIGINS` (comma-separated full origins)
 - `SQLITE_PATH` (optional custom DB path)
+- `WEB_PORT_BIND` (default `8000:8000`, set `127.0.0.1:8000:8000` when behind Caddy)
 - `OPENAI_API_KEY` (optional, needed for magic item generation)
 - `OPENAI_DEFAULT_MODEL` (default: `gpt-5-mini`)
 - `SERVER_COMPENDIUM_XML_PATH` (optional server-side XML path)
 - `SERVER_COMPENDIUM_SYSTEM` (default: `dnd5e`)
+- `REQUIRE_STRONG_SECRET_KEY` (`1` recommended in production)
+- `SECURE_SSL_REDIRECT`, `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`
+- `SECURE_HSTS_SECONDS`, `SECURE_HSTS_INCLUDE_SUBDOMAINS`, `SECURE_HSTS_PRELOAD`
+- `SECURE_CONTENT_TYPE_NOSNIFF`, `SECURE_REFERRER_POLICY`
 
 ### 3. Run
 
@@ -212,6 +202,44 @@ This overlay:
 - keeps migrate/collectstatic/perf-startup hooks on (configurable by env)
 - increases default gunicorn workers
 - sets restart policy to `always`
+- sets secure-cookie/HTTPS settings via env defaults in production
+
+## Internet Deployment Security
+
+If you expose the app outside your local network, use this minimum checklist.
+
+### Required
+
+- Set a strong random `SECRET_KEY`
+- Set `REQUIRE_STRONG_SECRET_KEY=1`
+- Set `DEBUG=false`
+- Set exact `ALLOWED_HOSTS` (domain only, no wildcard unless intentional)
+- Set exact `CSRF_TRUSTED_ORIGINS` (full `https://...` origins)
+- Run behind Caddy with TLS (`docker compose --profile proxy ...`)
+- Set `WEB_PORT_BIND=127.0.0.1:8000:8000` so Gunicorn is not publicly exposed
+
+### Recommended hardened values
+
+Add to `.env`:
+
+```dotenv
+REQUIRE_STRONG_SECRET_KEY=1
+WEB_PORT_BIND=127.0.0.1:8000:8000
+SECURE_SSL_REDIRECT=1
+SESSION_COOKIE_SECURE=1
+CSRF_COOKIE_SECURE=1
+SECURE_CONTENT_TYPE_NOSNIFF=1
+SECURE_REFERRER_POLICY=same-origin
+SECURE_HSTS_SECONDS=31536000
+SECURE_HSTS_INCLUDE_SUBDOMAINS=1
+SECURE_HSTS_PRELOAD=0
+```
+
+Notes:
+
+- Enable HSTS only after HTTPS is working correctly for your domain.
+- Keep `SECURE_HSTS_PRELOAD=0` unless you intentionally submit your domain to the preload list.
+- If you run without a reverse proxy/TLS, do **not** enable strict HTTPS redirects until TLS is in place.
 
 ## Performance Guard
 

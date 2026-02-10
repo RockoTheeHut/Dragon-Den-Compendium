@@ -19,13 +19,15 @@ OBJECT_TYPE_MAP = {
 }
 
 
-def _text(value):
+def _strip_text(value):
+    """Trim XML text values while safely handling None."""
     if value is None:
         return ""
     return value.strip()
 
 
 def _merge_value(target, key, value):
+    """Merge repeated XML tags into list values."""
     if key in target:
         if not isinstance(target[key], list):
             target[key] = [target[key]]
@@ -35,13 +37,14 @@ def _merge_value(target, key, value):
 
 
 def element_to_dict(element):
+    """Convert an XML element tree into a JSON-serializable dictionary."""
     payload = {}
     if element.attrib:
         payload["_attributes"] = dict(element.attrib)
 
     children = list(element)
     if not children:
-        text = _text(element.text)
+        text = _strip_text(element.text)
         if text:
             payload["value"] = text
         return payload
@@ -50,7 +53,7 @@ def element_to_dict(element):
         if list(child):
             value = element_to_dict(child)
         else:
-            value = _text(child.text)
+            value = _strip_text(child.text)
             if child.attrib:
                 value = {"value": value, "_attributes": dict(child.attrib)}
         _merge_value(payload, child.tag, value)
@@ -59,6 +62,7 @@ def element_to_dict(element):
 
 
 def normalize_for_hashing(value):
+    """Recursively sort dictionaries so payload hashing is stable."""
     if isinstance(value, dict):
         return {key: normalize_for_hashing(value[key]) for key in sorted(value.keys())}
     if isinstance(value, list):
@@ -67,6 +71,7 @@ def normalize_for_hashing(value):
 
 
 def deterministic_external_id(system, object_type, name, raw_payload):
+    """Build a deterministic ID when source XML has no stable external identifier."""
     fingerprint = {
         "system": system,
         "object_type": object_type,
@@ -79,11 +84,12 @@ def deterministic_external_id(system, object_type, name, raw_payload):
 
 
 def extract_external_id(element):
+    """Try multiple common XML ID locations in priority order."""
     candidates = [
-        _text(element.attrib.get("id")),
-        _text(element.attrib.get("uid")),
-        _text(element.findtext("id")),
-        _text(element.findtext("uid")),
+        _strip_text(element.attrib.get("id")),
+        _strip_text(element.attrib.get("uid")),
+        _strip_text(element.findtext("id")),
+        _strip_text(element.findtext("uid")),
     ]
     for candidate in candidates:
         if candidate:
@@ -92,21 +98,24 @@ def extract_external_id(element):
 
 
 def extract_name(element):
-    name = _text(element.findtext("name"))
+    """Read primary object name from child tags/attributes."""
+    name = _strip_text(element.findtext("name"))
     if name:
         return name
-    return _text(element.attrib.get("name")) or "Unnamed"
+    return _strip_text(element.attrib.get("name")) or "Unnamed"
 
 
 def extract_description(element):
+    """Choose first non-empty description-like field."""
     for tag in ("text", "description"):
-        value = _text(element.findtext(tag))
+        value = _strip_text(element.findtext(tag))
         if value:
             return value
     return ""
 
 
 def import_fightclub_xml_path(file_path, system):
+    """Import/upsert supported Fight Club XML nodes into GameObject rows."""
     if not isinstance(file_path, Path):
         file_path = Path(file_path)
     system = (system or "").strip()
@@ -136,20 +145,22 @@ def import_fightclub_xml_path(file_path, system):
             if not external_id:
                 external_id = deterministic_external_id(system, object_type, name, payload)
 
-            match = GameObject.objects.filter(
+            # Primary match path: stable external ID.
+            existing_object = GameObject.objects.filter(
                 system=system,
                 object_type=object_type,
                 external_id=external_id,
             ).first()
 
-            if match is None:
-                match = GameObject.objects.filter(
+            if existing_object is None:
+                # Secondary fallback keeps existing objects stable across re-imports.
+                existing_object = GameObject.objects.filter(
                     system=system,
                     object_type=object_type,
                     name=name,
                 ).first()
-                if match is not None and match.external_id:
-                    external_id = match.external_id
+                if existing_object is not None and existing_object.external_id:
+                    external_id = existing_object.external_id
 
             defaults = {
                 "name": name,
@@ -159,22 +170,22 @@ def import_fightclub_xml_path(file_path, system):
                 "external_id": external_id,
             }
 
-            if match is None:
+            if existing_object is None:
                 created = GameObject.objects.create(system=system, object_type=object_type, **defaults)
                 created_count += 1
                 touched_object_ids.append(created.pk)
             else:
                 changed = False
                 for field, value in defaults.items():
-                    if getattr(match, field) != value:
-                        setattr(match, field, value)
+                    if getattr(existing_object, field) != value:
+                        setattr(existing_object, field, value)
                         changed = True
                 if changed:
-                    match.save()
+                    existing_object.save()
                     updated_count += 1
                 else:
                     skipped_count += 1
-                touched_object_ids.append(match.pk)
+                touched_object_ids.append(existing_object.pk)
 
     return {
         "created": created_count,
