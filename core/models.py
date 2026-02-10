@@ -16,17 +16,19 @@ class UserSettings(models.Model):
         return f"Settings for {self.user.username}"
 
     @classmethod
-    def for_user(cls, user):
-        """Return existing settings for a user or create a default row."""
+    def for_user(cls, user, create=True):
+        """Return user settings; optionally create a default row if missing."""
         if not user or not user.is_authenticated:
             return None
-        user_settings, _created = cls.objects.get_or_create(user=user)
-        return user_settings
+        if create:
+            user_settings, _created = cls.objects.get_or_create(user=user)
+            return user_settings
+        return cls.objects.filter(user=user).first()
 
 
 def get_effective_openai_api_key(user):
     """Prefer user-level OpenAI key, fallback to server-level environment key."""
-    user_settings = UserSettings.for_user(user)
+    user_settings = UserSettings.for_user(user, create=False)
     if user_settings and user_settings.openai_api_key:
         return user_settings.openai_api_key
     return django_settings.OPENAI_API_KEY

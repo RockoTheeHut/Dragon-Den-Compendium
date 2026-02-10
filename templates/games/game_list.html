@@ -1,18 +1,20 @@
-<section class="panel narrow">
+<section class="panel narrow games-create-panel">
   <h1>Games</h1>
-  <form method="post">
+  <form method="post" class="game-create-form">
     {% csrf_token %}
-    {{ form.as_p }}
+    <div class="game-create-grid">
+      {{ form.as_p }}
+    </div>
     <button class="button" type="submit">Create Game</button>
   </form>
 </section>
 
-<section class="panel">
+<section class="panel games-list-panel">
   <h2>Existing Games</h2>
   {% if games %}
-    <ul class="game-list">
+    <ul class="game-list games-list">
       {% for game in games %}
-        <li class="game-row">
+        <li class="game-row game-row-card games-list-row">
           <a href="{% url 'games:detail' game.pk %}" hx-get="{% url 'games:detail' game.pk %}" hx-target="#main-content" hx-push-url="true">{{ game.title }}</a>
           <span class="muted">created by {{ game.created_by.username }}</span>
           <button class="button danger" type="button" onclick="openDeleteModal('delete-game-{{ game.pk }}')">Delete</button>

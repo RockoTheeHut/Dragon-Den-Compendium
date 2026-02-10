@@ -1,7 +1,7 @@
 import re
 
 from django.contrib.auth.decorators import login_required
-from django.db.models import Case, F, IntegerField, Max, Value, When
+from django.db.models import F, Max
 from django.http import HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, render
 from django.views.decorators.http import require_GET, require_POST
@@ -414,19 +414,6 @@ def remove_entry(request, entry_id):
 
 @login_required
 @require_POST
-def toggle_active(request, entry_id):
-    entry = get_object_or_404(TurnTrackerEntry, pk=entry_id, user=request.user, encounter=_get_active_encounter(request))
-    entry.is_active = not entry.is_active
-    if not entry.is_active and entry.is_current:
-        entry.is_current = False
-        entry.save(update_fields=["is_active", "is_current"])
-    else:
-        entry.save(update_fields=["is_active"])
-    return _render_list_region(request)
-
-
-@login_required
-@require_POST
 def set_current(request, entry_id):
     encounter = _get_active_encounter(request)
     entry = get_object_or_404(TurnTrackerEntry, pk=entry_id, user=request.user, encounter=encounter)
@@ -456,43 +443,6 @@ def reorder_entries(request):
         TurnTrackerEntry.objects.bulk_update(updates, ["sort_order"])
 
     _normalize_sort_order(request.user, encounter=encounter)
-    return _render_list_region(request)
-
-
-@login_required
-@require_POST
-def move_up(request, entry_id):
-    encounter = _get_active_encounter(request)
-    _normalize_sort_order(request.user, encounter=encounter)
-    entry = get_object_or_404(TurnTrackerEntry, pk=entry_id, user=request.user, encounter=encounter)
-    if entry.sort_order > 0:
-        prev_entry = TurnTrackerEntry.objects.filter(user=request.user, encounter=encounter, sort_order=entry.sort_order - 1).first()
-        if prev_entry is not None:
-            TurnTrackerEntry.objects.filter(pk__in=[entry.pk, prev_entry.pk]).update(
-                sort_order=Case(
-                    When(pk=entry.pk, then=Value(prev_entry.sort_order)),
-                    When(pk=prev_entry.pk, then=Value(entry.sort_order)),
-                    output_field=IntegerField(),
-                )
-            )
-    return _render_list_region(request)
-
-
-@login_required
-@require_POST
-def move_down(request, entry_id):
-    encounter = _get_active_encounter(request)
-    _normalize_sort_order(request.user, encounter=encounter)
-    entry = get_object_or_404(TurnTrackerEntry, pk=entry_id, user=request.user, encounter=encounter)
-    next_entry = TurnTrackerEntry.objects.filter(user=request.user, encounter=encounter, sort_order=entry.sort_order + 1).first()
-    if next_entry is not None:
-        TurnTrackerEntry.objects.filter(pk__in=[entry.pk, next_entry.pk]).update(
-            sort_order=Case(
-                When(pk=entry.pk, then=Value(next_entry.sort_order)),
-                When(pk=next_entry.pk, then=Value(entry.sort_order)),
-                output_field=IntegerField(),
-            )
-        )
     return _render_list_region(request)
 
 

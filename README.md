@@ -22,6 +22,8 @@ All authenticated users are regular users. There is no Django admin/staff role w
 
 The project is optimized for Desktop/Laptop workflows and supports iPad-sized responsive layouts for tracker and compendium usage.
 
+Light Mode is currently incomplete and looks like shit.
+
 ## Tech Stack
 
 - Python `3.14.x`

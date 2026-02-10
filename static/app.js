@@ -35,7 +35,7 @@
     target._swapAnimationTimer = setTimeout(function () {
       target.classList.remove(SWAP_ANIMATION_CLASS);
       target._swapAnimationTimer = null;
-    }, 260);
+    }, 220);
   }
 
   function isAnimatableSwapTarget(target) {
@@ -49,9 +49,6 @@
       "compendium-preview-modal-content",
       "notes-modal-content",
       "settings-modal-content",
-      "dice-roll-result",
-      "random-item-result",
-      "random-item-history-region",
     ].includes(target.id);
   }
 

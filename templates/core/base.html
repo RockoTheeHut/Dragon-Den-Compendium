@@ -5,7 +5,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Dragon Den Compendium</title>
-  <link rel="stylesheet" href="{% static 'styles.css' %}?v=phase2-polish-24">
+  <script>
+    (function () {
+      try {
+        var storedTheme = localStorage.getItem("ddc_theme_mode");
+        if (storedTheme === "light") {
+          document.documentElement.classList.add("theme-light");
+          if (document.body) {
+            document.body.classList.add("theme-light");
+          }
+        }
+      } catch (error) {
+      }
+    })();
+  </script>
+  <link rel="stylesheet" href="{% static 'styles.css' %}?v=phase2-polish-36">
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.3/Sortable.min.js"></script>
 </head>
@@ -114,7 +128,7 @@
   </div>
 
   <div id="settings-modal" class="modal hidden" onclick="if(event.target === this) closeSettingsModal()">
-    <div class="modal-content modal-tool modal-small">
+    <div class="modal-content modal-tool settings-modal-shell">
       <div class="modal-header">
         <h2>Settings</h2>
         <button class="button ghost" type="button" onclick="closeSettingsModal()">Close</button>
@@ -137,8 +151,62 @@
     {% include "compendium/partials/object_preview_modal_shell.html" %}
   {% endif %}
 
-  <script src="{% static 'app.js' %}?v=phase2-polish-24"></script>
+  <script src="{% static 'app.js' %}?v=phase2-polish-36"></script>
   <script>
+    function getStoredThemeMode() {
+      try {
+        return localStorage.getItem("ddc_theme_mode") || "dark";
+      } catch (error) {
+        return "dark";
+      }
+    }
+
+    function applyThemeMode(mode) {
+      const root = document.documentElement;
+      const body = document.body;
+      if (!root) return;
+      const isLight = mode === "light";
+      root.classList.toggle("theme-light", isLight);
+      if (body) {
+        body.classList.toggle("theme-light", isLight);
+      }
+    }
+
+    function saveThemeMode(mode) {
+      try {
+        localStorage.setItem("ddc_theme_mode", mode);
+      } catch (error) {
+      }
+    }
+
+    function wireThemeSettings() {
+      const toggle = document.getElementById("theme-light-toggle");
+      if (!toggle || toggle.dataset.bound === "1") return;
+      const modeLabel = document.getElementById("theme-mode-label");
+      const isLight = getStoredThemeMode() === "light";
+
+      toggle.checked = isLight;
+      toggle.dataset.bound = "1";
+      if (modeLabel) {
+        modeLabel.textContent = isLight
+          ? "Light mode is on (warm light palette)."
+          : "Dark mode is on.";
+      }
+
+      toggle.addEventListener("change", function () {
+        const nextMode = toggle.checked ? "light" : "dark";
+        applyThemeMode(nextMode);
+        saveThemeMode(nextMode);
+        if (modeLabel) {
+          modeLabel.textContent = toggle.checked
+            ? "Light mode is on (warm light palette)."
+            : "Dark mode is on.";
+        }
+      });
+    }
+
+    applyThemeMode(getStoredThemeMode());
+
     function prefersReducedMotion() {
       return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
     }
@@ -425,6 +493,9 @@
       if (event.target && event.target.id === "random-item-result") {
         hideRandomItemPicking();
       }
+      if (event.target && event.target.id === "settings-modal-content") {
+        wireThemeSettings();
+      }
     });
 
     document.body.addEventListener("htmx:beforeRequest", function (event) {
@@ -446,6 +517,7 @@
     });
 
     wireRandomItemTool();
+    wireThemeSettings();
   </script>
 </body>
 </html>

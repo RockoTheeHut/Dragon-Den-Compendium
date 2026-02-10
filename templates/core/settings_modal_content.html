@@ -25,6 +25,15 @@
   </section>
 
   <section class="settings-card">
+    <h3 class="settings-card-title">Appearance</h3>
+    <label class="settings-checkbox-row settings-theme-row">
+      <input id="theme-light-toggle" type="checkbox">
+      <span>Use Light Mode</span>
+    </label>
+    <p id="theme-mode-label" class="muted settings-help-text">Soft parchment light mode (easy on eyes, not pure white).</p>
+  </section>
+
+  <section class="settings-card">
     <h3 class="settings-card-title">Import User XML</h3>
     <form id="settings-import-xml-form" method="post" action="{% url 'core:import_user_compendium_xml' %}" enctype="multipart/form-data" hx-post="{% url 'core:import_user_compendium_xml' %}" hx-target="#settings-modal-content" hx-swap="innerHTML" hx-encoding="multipart/form-data" class="settings-form-grid">
       {% csrf_token %}

@@ -1,26 +1,27 @@
-<section class="panel">
+<section class="panel home-hero-panel">
   <h1>Dungeon Master Assistant</h1>
   <p>Use the sidebar to manage your compendium, games, notes, and utilities.</p>
 </section>
 
-<section class="panel">
+<section class="panel home-recent-panel">
   <h2>Your Recent Games</h2>
   {% if recent_games %}
-    <ul>
+    <ul class="game-list">
       {% for game in recent_games %}
-        <li>
+        <li class="game-row game-row-card">
           <a href="{% url 'games:detail' game.pk %}" hx-get="{% url 'games:detail' game.pk %}" hx-target="#main-content" hx-push-url="true">
             {{ game.title }}
           </a>
+          <span class="muted">Open campaign</span>
         </li>
       {% endfor %}
     </ul>
   {% else %}
-    <p>No games yet. Create one from the Games section.</p>
+    <p class="muted">No games yet. Create one from the Games section.</p>
   {% endif %}
 </section>
 
-<section class="panel">
+<section class="panel home-favorites-panel">
   <h2>Your Favorite Objects</h2>
   {% if favorite_objects %}
     <div class="table-wrap">
@@ -65,6 +66,6 @@
       </table>
     </div>
   {% else %}
-    <p>No favorites yet. Favorite objects from the Compendium.</p>
+    <p class="muted">No favorites yet. Favorite objects from the Compendium.</p>
   {% endif %}
 </section>

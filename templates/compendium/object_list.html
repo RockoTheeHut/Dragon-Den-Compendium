@@ -1,4 +1,4 @@
-<section class="panel tracker-page compendium-page">
+<section class="panel tracker-page compendium-page compendium-list-panel">
   <div class="tracker-page-header">
     <div class="inline-header">
       <h1>Compendium</h1>
@@ -7,7 +7,7 @@
         <a class="button small ghost" href="{% url 'compendium:tags' %}" hx-get="{% url 'compendium:tags' %}" hx-target="#main-content" hx-push-url="true">Tags</a>
       </div>
     </div>
-    <form method="get" class="inline-form filters-form">
+    <form method="get" class="inline-form filters-form compendium-filters-form">
       <input type="search" name="q" value="{{ active_filters.q }}" placeholder="Search...">
       <select name="object_type">
         <option value="">All types</option>
@@ -33,7 +33,7 @@
     </form>
   </div>
 
-  <p class="muted">Showing {{ objects|length }} of {{ page_obj.paginator.count }} objects on this page load.</p>
+  <p class="muted compendium-count">Showing {{ objects|length }} of {{ page_obj.paginator.count }} objects on this page load.</p>
   {% if objects %}
     <div class="table-wrap compendium-table-wrap">
       <table class="compendium-table">

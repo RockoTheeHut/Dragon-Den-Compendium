@@ -93,7 +93,8 @@ def _render_settings_modal_response(request, context, trigger_compendium_reload=
 def _settings_context(request, settings_form=None, upload_form=None, import_result_message=""):
     """Build a consistent context payload for all settings modal responses."""
     in_modal = bool(request.headers.get("HX-Request"))
-    user_settings = UserSettings.for_user(request.user)
+    # Read-only settings context should not create a row until the user saves settings.
+    user_settings = UserSettings.for_user(request.user, create=False)
     server_xml_path = (settings.SERVER_COMPENDIUM_XML_PATH or "").strip()
     has_server_xml = bool(server_xml_path)
     settings_form = settings_form or UserSettingsForm(

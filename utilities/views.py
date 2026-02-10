@@ -49,10 +49,6 @@ def _resolve_openai_api_key(user):
     return get_effective_openai_api_key(user)
 
 
-def _is_openai_ready(user):
-    return bool(_resolve_openai_api_key(user) and settings.OPENAI_DEFAULT_MODEL)
-
-
 def _extract_json(text):
     """Extract the first JSON object from model output text."""
     start = text.find("{")
@@ -137,7 +133,8 @@ def magic_item_generator(request):
     form = MagicItemGeneratorForm(request.POST or None)
     save_global_form = MagicItemSaveGlobalForm()
     save_game_form = MagicItemSaveGameForm()
-    openai_ready = _is_openai_ready(request.user)
+    effective_api_key = _resolve_openai_api_key(request.user)
+    openai_ready = bool(effective_api_key and settings.OPENAI_DEFAULT_MODEL)
     if request.method == "POST":
         if form.is_valid():
             if not openai_ready:
@@ -150,7 +147,7 @@ def magic_item_generator(request):
                     generated = _generate_magic_item(
                         form.cleaned_data,
                         form.cleaned_data["model"],
-                        _resolve_openai_api_key(request.user),
+                        effective_api_key,
                     )
                     generated_json = json.dumps(generated)
                 except Exception as exc:  # noqa: BLE001

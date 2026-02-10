@@ -54,6 +54,7 @@ class UserSettingsTests(TestCase):
         self.client.force_login(self.user)
 
     def test_settings_modal_renders(self):
+        self.assertFalse(UserSettings.objects.filter(user=self.user).exists())
         response = self.client.get(reverse("core:settings_modal"), HTTP_HX_REQUEST="true")
 
         self.assertEqual(response.status_code, 200)
@@ -61,6 +62,7 @@ class UserSettingsTests(TestCase):
         self.assertContains(response, "Import User XML")
         self.assertContains(response, "Use server-wide XML")
         self.assertContains(response, "Logout")
+        self.assertFalse(UserSettings.objects.filter(user=self.user).exists())
 
     @override_settings(SERVER_COMPENDIUM_XML_PATH="/tmp/server.xml", SERVER_COMPENDIUM_SYSTEM="dnd5e")
     def test_use_server_xml_toggle_defaults_on_when_server_path_exists(self):

@@ -1,11 +1,11 @@
-<section class="panel">
+<section class="panel game-detail-header-panel">
   <div class="inline-header">
     <h1>{{ game.title }}</h1>
     <a class="button ghost" href="{% url 'games:list' %}?all=1" hx-get="{% url 'games:list' %}?all=1" hx-target="#main-content" hx-push-url="true">Back to games</a>
   </div>
 </section>
 
-<section class="panel">
+<section class="panel game-players-panel">
   <div class="inline-header">
     <h2>Game Players</h2>
     <button class="button" type="button" onclick="openAddPlayerModal()">Add Player</button>
@@ -116,7 +116,7 @@
   </div>
 </div>
 
-<section class="panel">
+<section class="panel game-encounters-panel">
   <h2>Encounters</h2>
   <form method="post" action="{% url 'games:create_encounter' game.id %}" class="inline-form encounter-create-form">
     {% csrf_token %}
