@@ -1,7 +1,7 @@
 # Dragon Den Compendium
 
-Open source D&D DM helper app (roughly 70% AI, and vibe-coded) for Desktop, Laptop, and iPad.  
-Built with Django + HTMX for a local-first with optional Docker deployment.
+Dragon Den Compendium is an open source D&D DM helper app (roughly 70% AI + vibe-coded) for Desktop, Laptop, and iPad.  
+It is built with Django + HTMX for a local-first workflow, with optional Docker deployment.
 
 ## What It Does
 
@@ -22,7 +22,17 @@ All authenticated users are regular users. There is no Django admin/staff role w
 
 The project is optimized for Desktop/Laptop workflows and supports iPad-sized responsive layouts for tracker and compendium usage.
 
-Light Mode is currently incomplete and looks like shit.
+Light Mode is currently incomplete and still being tuned.
+
+## Screenshots
+
+Home / Dashboard (Image #1):
+
+![Image #1 - Home Dashboard](docs/images/Home%20Page.png)
+
+Compendium (Image #2):
+
+![Image #2 - Compendium](docs/images/Compendium%20page.png)
 
 ## Tech Stack
 
