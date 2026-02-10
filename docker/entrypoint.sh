@@ -1,6 +1,13 @@
 #!/bin/sh
 set -e
 
+if [ "$(id -u)" = "0" ] && [ "${DDC_PRIV_DROPPED:-0}" != "1" ]; then
+  mkdir -p /app/data /app/staticfiles
+  chown -R app:app /app/data /app/staticfiles
+  export DDC_PRIV_DROPPED=1
+  exec gosu app:app "$0" "$@"
+fi
+
 echo "Starting Dragon Den Compendium..."
 
 if [ -z "${OPENAI_API_KEY:-}" ]; then

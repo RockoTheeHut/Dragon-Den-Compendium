@@ -1,0 +1,42 @@
+name: Docker Smoke
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  docker-smoke:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create test env
+        run: |
+          cat > .env <<'ENVEOF'
+          SECRET_KEY=docker-smoke-secret-key-change-me-1234567890
+          DEBUG=false
+          ALLOWED_HOSTS=127.0.0.1,localhost
+          CSRF_TRUSTED_ORIGINS=
+          SQLITE_PATH=/app/data/db.sqlite3
+          OPENAI_API_KEY=
+          OPENAI_DEFAULT_MODEL=gpt-5-mini
+          SERVER_COMPENDIUM_XML_PATH=/app/compendium_xml/server-compendium.xml
+          SERVER_COMPENDIUM_SYSTEM=dnd5e
+          DJANGO_MIGRATE=1
+          DJANGO_COLLECTSTATIC=1
+          PERF_GUARD_ON_STARTUP=0
+          PERF_GUARD_STARTUP_ITERATIONS=1
+          PORT=8000
+          WEB_PORT_BIND=127.0.0.1:18080:8000
+          GUNICORN_WORKERS=2
+          GUNICORN_TIMEOUT=120
+          ENVEOF
+
+      - name: Run docker smoke test
+        run: |
+          scripts/docker_smoke_test.sh

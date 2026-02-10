@@ -141,6 +141,8 @@ Container runtime:
 - Health check endpoint: `/healthz/`
 - SQLite volume at `/app/data`
 - Optional XML mount: `./compendium_xml -> /app/compendium_xml`
+- Multi-stage image build with dependency builder stage
+- Runtime process drops privileges to non-root `app` user before Django/Gunicorn startup
 
 ### Easy OpenAI + server-wide XML config
 
@@ -203,6 +205,8 @@ This overlay:
 - increases default gunicorn workers
 - sets restart policy to `always`
 - sets secure-cookie/HTTPS settings via env defaults in production
+- binds app port to loopback by default (`127.0.0.1:8000:8000`)
+- applies container hardening (`no-new-privileges`, `cap_drop: ALL`, tmpfs `/tmp` for web)
 
 ## Internet Deployment Security
 
@@ -265,6 +269,24 @@ If thresholds exceed:
 
 - strict mode exits non-zero
 - warn-only logs warnings and continues startup
+
+## Docker CI Smoke Test
+
+Run local smoke check:
+
+```bash
+scripts/docker_smoke_test.sh
+```
+
+What it validates:
+
+- compose build for `web`
+- container startup + healthcheck
+- `GET /healthz/` readiness
+
+CI:
+
+- GitHub Actions workflow: `.github/workflows/docker-smoke.yml`
 
 ## Testing
 

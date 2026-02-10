@@ -1,22 +1,46 @@
-FROM python:3.14-slim
+FROM python:3.14-slim AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    VENV_PATH=/opt/venv
 
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends build-essential wget \
+    && apt-get install -y --no-install-recommends build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
-RUN pip install -r requirements.txt
+RUN python -m venv "${VENV_PATH}"
+ENV PATH="${VENV_PATH}/bin:${PATH}"
 
+COPY requirements.txt ./
+RUN pip install --upgrade pip \
+    && pip install -r requirements.txt
+
+
+FROM python:3.14-slim AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    VENV_PATH=/opt/venv \
+    PATH=/opt/venv/bin:${PATH}
+
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends wget gosu \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --system app \
+    && useradd --system --gid app --home-dir /app --shell /usr/sbin/nologin app
+
+COPY --from=builder /opt/venv /opt/venv
 COPY . .
 
 RUN mkdir -p /app/data /app/staticfiles \
-    && chmod +x /app/docker/entrypoint.sh
+    && chmod +x /app/docker/entrypoint.sh \
+    && chown -R app:app /app
 
 EXPOSE 8000
 

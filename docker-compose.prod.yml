@@ -1,5 +1,13 @@
 services:
   web:
+    ports:
+      - "${WEB_PORT_BIND:-127.0.0.1:8000:8000}"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
     environment:
       DEBUG: "false"
       DJANGO_SETTINGS_MODULE: dragon_den.settings.base
@@ -21,5 +29,9 @@ services:
     restart: always
 
   caddy:
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     profiles: []
     restart: always
