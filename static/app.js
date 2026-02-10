@@ -182,6 +182,18 @@
     modal.classList.add("hidden");
   }
 
+  function openTrackerAddModal() {
+    const modal = document.getElementById("tracker-add-modal");
+    const target = document.getElementById("tracker-add-modal-content");
+    if (!modal || !target || !window.htmx) return;
+    if (typeof window.openAppModal === "function") {
+      window.openAppModal(modal);
+    } else {
+      modal.classList.remove("hidden");
+    }
+    window.htmx.ajax("GET", "/tracker/entries/add-modal/", "#tracker-add-modal-content");
+  }
+
   function openTrackerEditModal(entryId) {
     const modal = document.getElementById("tracker-edit-modal");
     const target = document.getElementById("tracker-edit-modal-content");
@@ -423,6 +435,7 @@
 
   window.openTrackerModal = openTrackerModal;
   window.closeTrackerModal = closeTrackerModal;
+  window.openTrackerAddModal = openTrackerAddModal;
   window.openTrackerEditModal = openTrackerEditModal;
   window.openTrackerStatusModal = openTrackerStatusModal;
   window.openTrackerMonsterModal = openTrackerMonsterModal;

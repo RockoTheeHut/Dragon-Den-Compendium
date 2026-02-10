@@ -2,6 +2,12 @@ import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
+try:
+    import whitenoise  # noqa: F401
+except Exception:  # noqa: BLE001
+    HAS_WHITENOISE = False
+else:
+    HAS_WHITENOISE = True
 
 
 def _load_dotenv(path):
@@ -48,6 +54,8 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
+if HAS_WHITENOISE:
+    MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")
 
 ROOT_URLCONF = "dragon_den.urls"
 
@@ -74,7 +82,7 @@ ASGI_APPLICATION = "dragon_den.asgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        "NAME": os.getenv("SQLITE_PATH", str(BASE_DIR / "db.sqlite3")),
     }
 }
 
@@ -101,6 +109,8 @@ USE_TZ = False
 STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
+if HAS_WHITENOISE and not DEBUG:
+    STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -118,3 +128,8 @@ OPENAI_MODEL_OPTIONS = [
 
 SERVER_COMPENDIUM_XML_PATH = os.getenv("SERVER_COMPENDIUM_XML_PATH", "")
 SERVER_COMPENDIUM_SYSTEM = os.getenv("SERVER_COMPENDIUM_SYSTEM", "dnd5e")
+
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip() for origin in os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",") if origin.strip()
+]

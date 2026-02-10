@@ -130,7 +130,6 @@ def _list_context(user):
     entries = list(_entry_queryset(user))
     return {
         "entries": entries,
-        "entry_type_choices": TurnTrackerEntry.EntryType.choices,
         "has_entries": bool(entries),
     }
 
@@ -146,10 +145,13 @@ def _add_forms_context():
 def _render_list_region(request, status=200):
     if request.headers.get("HX-Request"):
         return render(request, "tracker/partials/list_region.html", _list_context(request.user), status=status)
-    context = {}
-    context.update(_list_context(request.user))
-    context.update(_add_forms_context())
-    return render_page(request, "tracker/dashboard.html", context)
+    return render_page(request, "tracker/dashboard.html", _list_context(request.user))
+
+
+def _render_quick_update_response(request, entry):
+    if request.headers.get("HX-Request"):
+        return render(request, "tracker/partials/quick_update_oob.html", {"entry": entry})
+    return _render_list_region(request)
 
 
 def _normalize_sort_order(user):
@@ -185,10 +187,13 @@ def _create_status_effect_from_post(entry, post_data):
 
 @login_required
 def dashboard(request):
-    context = {}
-    context.update(_list_context(request.user))
-    context.update(_add_forms_context())
-    return render_page(request, "tracker/dashboard.html", context)
+    return render_page(request, "tracker/dashboard.html", _list_context(request.user))
+
+
+@login_required
+@require_GET
+def add_entry_modal(request):
+    return render(request, "tracker/partials/add_entry_modal_content.html", _add_forms_context())
 
 
 @login_required
@@ -290,7 +295,11 @@ def edit_entry(request, entry_id):
 @login_required
 @require_POST
 def quick_update_entry(request, entry_id):
-    entry = get_object_or_404(TurnTrackerEntry, pk=entry_id, user=request.user)
+    entry = get_object_or_404(
+        TurnTrackerEntry.objects.prefetch_related("status_effects"),
+        pk=entry_id,
+        user=request.user,
+    )
     updated_fields = []
 
     if "initiative" in request.POST:
@@ -325,7 +334,7 @@ def quick_update_entry(request, entry_id):
     if updated_fields:
         entry.save(update_fields=list(dict.fromkeys(updated_fields)))
 
-    return _render_list_region(request)
+    return _render_quick_update_response(request, entry)
 
 
 @login_required

@@ -6,6 +6,7 @@ from django.conf import settings
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
+from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.shortcuts import render
 from django.views.decorators.http import require_POST
@@ -19,6 +20,10 @@ from games.models import Game
 from .forms import CompendiumUploadImportForm, SignUpForm, UserSettingsForm
 from .models import UserImportedObject, UserSettings
 from .rendering import render_page
+
+
+def healthz(_request):
+    return JsonResponse({"status": "ok"})
 
 
 @login_required

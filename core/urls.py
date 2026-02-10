@@ -5,6 +5,7 @@ from . import views
 app_name = "core"
 
 urlpatterns = [
+    path("healthz/", views.healthz, name="healthz"),
     path("", views.home, name="home"),
     path("accounts/signup/", views.signup, name="signup"),
     path("settings/modal/", views.settings_modal, name="settings_modal"),

@@ -181,6 +181,7 @@ body.is-anonymous .app-shell {
 
 .sidebar.collapsed .sidebar-header {
   justify-content: center;
+  gap: 0;
 }
 
 .sidebar.collapsed .brand {

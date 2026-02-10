@@ -23,6 +23,10 @@ pip install -r requirements.txt
 Create a `.env` file (or set env vars in shell) with:
 
 - `SECRET_KEY`
+- `DEBUG` (optional; default `false`)
+- `ALLOWED_HOSTS` (optional; comma-separated)
+- `SQLITE_PATH` (optional; path to sqlite database file)
+- `CSRF_TRUSTED_ORIGINS` (optional; comma-separated full origins)
 - `OPENAI_API_KEY`
 - `OPENAI_DEFAULT_MODEL`
 - `SERVER_COMPENDIUM_XML_PATH` (optional; absolute path in container/host)
@@ -38,6 +42,26 @@ Example values are in `.env.example`.
 ```
 
 Open `http://127.0.0.1:8000`.
+
+## Docker (Full App Runtime)
+
+Build and run:
+
+```bash
+docker compose up --build
+```
+
+The container startup script runs migrations and `collectstatic` automatically.
+
+Default container URL:
+
+- `http://127.0.0.1:8000`
+
+Container details:
+
+- App server: `gunicorn`
+- Health endpoint: `/healthz/`
+- SQLite persistence volume mounted at `/app/data` (configured by `SQLITE_PATH=/app/data/db.sqlite3`)
 
 ## Auth
 

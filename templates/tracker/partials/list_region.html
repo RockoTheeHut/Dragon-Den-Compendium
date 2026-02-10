@@ -1,7 +1,7 @@
 <div id="tracker-list-region">
   <div class="tracker-toolbar">
     <div class="tracker-toolbar-left">
-      <button class="button" type="button" onclick="openTrackerModal('tracker-add-modal')">Add Entry</button>
+      <button class="button" type="button" onclick="openTrackerAddModal()">Add Entry</button>
       <span class="muted">{{ entries|length }} entries</span>
     </div>
     <div class="tracker-toolbar-right">
@@ -40,81 +40,7 @@
       </thead>
       <tbody id="turn-entry-table" data-reorder-form="reorder-form" data-order-input="turn-order-input">
         {% for entry in entries %}
-          <tr data-entry-id="{{ entry.id }}" class="tracker-row {% if entry.is_current %}current-turn{% endif %}">
-            <td>
-              <span class="tracker-drag-handle" title="Drag to reorder">::</span>
-            </td>
-            <td>
-              <div class="tracker-name-line">
-                {% if entry.source_kind == "compendium_monster" %}
-                  <button class="tracker-entry-trigger" type="button" onclick="openTrackerMonsterModal({{ entry.id }})"><strong>{{ entry.name }}</strong></button>
-                {% else %}
-                  <strong>{{ entry.name }}</strong>
-                {% endif %}
-                <span class="tracker-type-chip tracker-type-{{ entry.entry_type }}">{{ entry.get_entry_type_display }}</span>
-              </div>
-              {% if entry.notes %}
-                <div class="tracker-note-line">
-                  <span class="muted">{{ entry.notes|truncatechars:90 }}</span>
-                  <button class="button small ghost" type="button" onclick="openTrackerEditModal({{ entry.id }})">Expand</button>
-                </div>
-              {% endif %}
-            </td>
-            <td>
-              <form method="post" action="{% url 'tracker:quick_update_entry' entry.id %}" hx-post="{% url 'tracker:quick_update_entry' entry.id %}" hx-target="#tracker-list-region" hx-swap="outerHTML" class="tracker-inline-form">
-                {% csrf_token %}
-                <input type="number" name="initiative" value="{{ entry.initiative|default_if_none:'' }}" class="tracker-num-input" aria-label="Initiative for {{ entry.name }}">
-                <button class="button small ghost" type="submit">Save</button>
-              </form>
-            </td>
-            <td>
-              {% if entry.entry_type == "player" %}
-                <span class="muted">-</span>
-              {% else %}
-                <form method="post" action="{% url 'tracker:quick_update_entry' entry.id %}" hx-post="{% url 'tracker:quick_update_entry' entry.id %}" hx-target="#tracker-list-region" hx-swap="outerHTML" class="tracker-inline-form">
-                  {% csrf_token %}
-                  <input type="number" name="hp_current" value="{{ entry.hp_current|default_if_none:'' }}" class="tracker-num-input" aria-label="Current HP for {{ entry.name }}">
-                  <span class="muted">/ {{ entry.hp_max|default:"?" }}</span>
-                  <button class="button small ghost" type="submit">Save</button>
-                </form>
-              {% endif %}
-            </td>
-            <td>
-              <div class="tracker-chip-row">
-                {% for effect in entry.status_effects.all %}
-                  <button class="tracker-effect-chip {% if not effect.is_running %}is-paused{% endif %}" type="button" onclick="openTrackerStatusModal({{ entry.id }})">
-                    {{ effect.name }} • {{ effect.remaining_rounds }}
-                  </button>
-                {% empty %}
-                  <span class="muted">None</span>
-                {% endfor %}
-                <button class="button small ghost" type="button" onclick="openTrackerStatusModal({{ entry.id }})">+</button>
-              </div>
-            </td>
-            <td>
-              <form method="post" action="{% url 'tracker:quick_update_entry' entry.id %}" hx-post="{% url 'tracker:quick_update_entry' entry.id %}" hx-target="#tracker-list-region" hx-swap="outerHTML" class="tracker-toggle-form">
-                {% csrf_token %}
-                <input type="hidden" name="is_active" value="0">
-                <label class="tracker-switch">
-                  <input type="checkbox" name="is_active" value="1" {% if entry.is_active %}checked{% endif %} onchange="this.form.requestSubmit()">
-                  <span>{% if entry.is_active %}On{% else %}Off{% endif %}</span>
-                </label>
-              </form>
-            </td>
-            <td>
-              <div class="tracker-actions">
-                <form method="post" action="{% url 'tracker:set_current' entry.id %}" hx-post="{% url 'tracker:set_current' entry.id %}" hx-target="#tracker-list-region" hx-swap="outerHTML">
-                  {% csrf_token %}
-                  <button class="button small ghost" type="submit">Current</button>
-                </form>
-                <button class="button small ghost" type="button" onclick="openTrackerEditModal({{ entry.id }})">Edit</button>
-                <form method="post" action="{% url 'tracker:remove_entry' entry.id %}" hx-post="{% url 'tracker:remove_entry' entry.id %}" hx-target="#tracker-list-region" hx-swap="outerHTML" hx-confirm="Remove {{ entry.name }}?">
-                  {% csrf_token %}
-                  <button class="button small danger" type="submit">Remove</button>
-                </form>
-              </div>
-            </td>
-          </tr>
+          {% include "tracker/partials/entry_row.html" with entry=entry only %}
         {% empty %}
           <tr>
             <td colspan="7" class="muted">No tracker entries yet. Click Add Entry to start initiative.</td>
@@ -126,68 +52,7 @@
 
   <div class="tracker-card-list">
     {% for entry in entries %}
-      <article class="tracker-card {% if entry.is_current %}current-turn{% endif %}">
-        <div class="tracker-name-line">
-          {% if entry.source_kind == "compendium_monster" %}
-            <button class="tracker-entry-trigger" type="button" onclick="openTrackerMonsterModal({{ entry.id }})"><strong>{{ entry.name }}</strong></button>
-          {% else %}
-            <strong>{{ entry.name }}</strong>
-          {% endif %}
-          <span class="tracker-type-chip tracker-type-{{ entry.entry_type }}">{{ entry.get_entry_type_display }}</span>
-        </div>
-        <div class="tracker-card-grid">
-          <div>
-            <span class="muted">Initiative</span>
-            <form method="post" action="{% url 'tracker:quick_update_entry' entry.id %}" hx-post="{% url 'tracker:quick_update_entry' entry.id %}" hx-target="#tracker-list-region" hx-swap="outerHTML" class="tracker-inline-form">
-              {% csrf_token %}
-              <input type="number" name="initiative" value="{{ entry.initiative|default_if_none:'' }}" class="tracker-num-input">
-              <button class="button small ghost" type="submit">Save</button>
-            </form>
-          </div>
-          <div>
-            <span class="muted">HP</span>
-            {% if entry.entry_type == "player" %}
-              <div>-</div>
-            {% else %}
-              <form method="post" action="{% url 'tracker:quick_update_entry' entry.id %}" hx-post="{% url 'tracker:quick_update_entry' entry.id %}" hx-target="#tracker-list-region" hx-swap="outerHTML" class="tracker-inline-form">
-                {% csrf_token %}
-                <input type="number" name="hp_current" value="{{ entry.hp_current|default_if_none:'' }}" class="tracker-num-input">
-                <span class="muted">/ {{ entry.hp_max|default:"?" }}</span>
-                <button class="button small ghost" type="submit">Save</button>
-              </form>
-            {% endif %}
-          </div>
-        </div>
-        <div class="tracker-chip-row">
-          {% for effect in entry.status_effects.all %}
-            <button class="tracker-effect-chip {% if not effect.is_running %}is-paused{% endif %}" type="button" onclick="openTrackerStatusModal({{ entry.id }})">
-              {{ effect.name }} • {{ effect.remaining_rounds }}
-            </button>
-          {% empty %}
-            <span class="muted">No effects</span>
-          {% endfor %}
-          <button class="button small ghost" type="button" onclick="openTrackerStatusModal({{ entry.id }})">+</button>
-        </div>
-        <div class="tracker-actions">
-          <form method="post" action="{% url 'tracker:set_current' entry.id %}" hx-post="{% url 'tracker:set_current' entry.id %}" hx-target="#tracker-list-region" hx-swap="outerHTML">
-            {% csrf_token %}
-            <button class="button small ghost" type="submit">Current</button>
-          </form>
-          <button class="button small ghost" type="button" onclick="openTrackerEditModal({{ entry.id }})">Edit</button>
-          <form method="post" action="{% url 'tracker:quick_update_entry' entry.id %}" hx-post="{% url 'tracker:quick_update_entry' entry.id %}" hx-target="#tracker-list-region" hx-swap="outerHTML" class="tracker-toggle-form">
-            {% csrf_token %}
-            <input type="hidden" name="is_active" value="0">
-            <label class="tracker-switch">
-              <input type="checkbox" name="is_active" value="1" {% if entry.is_active %}checked{% endif %} onchange="this.form.requestSubmit()">
-              <span>{% if entry.is_active %}On{% else %}Off{% endif %}</span>
-            </label>
-          </form>
-          <form method="post" action="{% url 'tracker:remove_entry' entry.id %}" hx-post="{% url 'tracker:remove_entry' entry.id %}" hx-target="#tracker-list-region" hx-swap="outerHTML" hx-confirm="Remove {{ entry.name }}?">
-            {% csrf_token %}
-            <button class="button small danger" type="submit">Remove</button>
-          </form>
-        </div>
-      </article>
+      {% include "tracker/partials/entry_card.html" with entry=entry only %}
     {% empty %}
       <div class="muted">No tracker entries yet. Click Add Entry to start initiative.</div>
     {% endfor %}

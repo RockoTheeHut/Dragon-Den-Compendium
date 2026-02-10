@@ -73,6 +73,7 @@ KEY_RULE_SENTENCE_PATTERN = re.compile(
     flags=re.IGNORECASE,
 )
 INLINE_LIST_HINT_PATTERN = re.compile(r"\b(for example|such as|the following)\b", flags=re.IGNORECASE)
+WORD_TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
 KEY_TERM_EMPHASIS = ["spellbook", "cantrip", "spell level", "prepared spells"]
 OBJECT_TYPE_SORT_ORDER = [
     GameObject.ObjectType.CLASS,
@@ -558,16 +559,17 @@ def _build_related_reference_groups(game_object, preview_context):
         return []
 
     corpus = " ".join(text_lines).lower()
+    corpus_tokens = set(WORD_TOKEN_PATTERN.findall(corpus))
     object_type_labels = dict(GameObject.ObjectType.choices)
     grouped = {object_type: [] for object_type in REFERENCE_OBJECT_TYPES}
 
     candidates = GameObject.objects.filter(
         system=game_object.system,
         object_type__in=REFERENCE_OBJECT_TYPES,
-    ).exclude(pk=game_object.pk).only("id", "name", "object_type").order_by("name")
+    ).exclude(pk=game_object.pk).values_list("id", "name", "object_type").order_by("name")
 
-    for candidate in candidates:
-        name = _clean_text(candidate.name)
+    for candidate_id, candidate_name, candidate_object_type in candidates:
+        name = _clean_text(candidate_name)
         if not name:
             continue
 
@@ -576,16 +578,19 @@ def _build_related_reference_groups(game_object, preview_context):
             continue
 
         lowered_name = name.lower()
+        if not _is_reference_candidate(corpus_tokens, lowered_name):
+            continue
+
         if lowered_name not in corpus:
             continue
 
-        if not re.search(rf"(?<![a-z0-9]){re.escape(lowered_name)}(?![a-z0-9])", corpus):
+        if not _contains_whole_phrase(corpus, lowered_name):
             continue
 
-        bucket = grouped.get(candidate.object_type)
+        bucket = grouped.get(candidate_object_type)
         if bucket is None or len(bucket) >= 12:
             continue
-        bucket.append({"id": candidate.id, "name": name})
+        bucket.append({"id": candidate_id, "name": name})
 
     result = []
     for object_type in REFERENCE_OBJECT_TYPES:
@@ -600,6 +605,28 @@ def _build_related_reference_groups(game_object, preview_context):
             }
         )
     return result
+
+
+def _is_reference_candidate(corpus_tokens, lowered_name):
+    name_tokens = [token for token in WORD_TOKEN_PATTERN.findall(lowered_name) if len(token) >= 3]
+    if not name_tokens:
+        return False
+    return all(token in corpus_tokens for token in name_tokens)
+
+
+def _contains_whole_phrase(corpus, phrase):
+    start = 0
+    phrase_length = len(phrase)
+    while True:
+        index = corpus.find(phrase, start)
+        if index == -1:
+            return False
+        end = index + phrase_length
+        before_ok = index == 0 or not corpus[index - 1].isalnum()
+        after_ok = end == len(corpus) or not corpus[end].isalnum()
+        if before_ok and after_ok:
+            return True
+        start = index + 1
 
 
 def _build_reference_lookup(related_reference_groups):

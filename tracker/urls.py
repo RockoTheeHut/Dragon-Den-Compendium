@@ -6,6 +6,7 @@ app_name = "tracker"
 
 urlpatterns = [
     path("", views.dashboard, name="dashboard"),
+    path("entries/add-modal/", views.add_entry_modal, name="add_entry_modal"),
     path("entries/add/", views.add_entry, name="add_entry"),
     path("entries/add-from-compendium/", views.add_from_compendium, name="add_from_compendium"),
     path("entries/add-from-instance/", views.add_from_game_instance, name="add_from_instance"),

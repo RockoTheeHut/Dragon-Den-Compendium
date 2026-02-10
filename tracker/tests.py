@@ -243,8 +243,14 @@ class TurnTrackerTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Add Entry")
         self.assertContains(response, "Initiative")
-        self.assertContains(response, "Search Monster")
+        self.assertContains(response, "Loading entry form...")
         self.assertNotContains(response, "Create NPC / Enemy From Compendium Monster")
+
+    def test_add_entry_modal_endpoint_returns_form_content(self):
+        response = self.client.get(reverse("tracker:add_entry_modal"), HTTP_HX_REQUEST="true")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Search Monster")
+        self.assertContains(response, "Add From Monster")
 
     def test_edit_entry_modal_endpoint_returns_modal_content(self):
         entry = TurnTrackerEntry.objects.create(
