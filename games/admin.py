@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Game, GameObjectInstance
+from .models import Game, GameObjectInstance, GamePlayer
 
 
 @admin.register(Game)
@@ -14,3 +14,9 @@ class GameObjectInstanceAdmin(admin.ModelAdmin):
     list_display = ("name", "game", "object_type", "updated_at")
     search_fields = ("name",)
     list_filter = ("object_type",)
+
+
+@admin.register(GamePlayer)
+class GamePlayerAdmin(admin.ModelAdmin):
+    list_display = ("name", "game", "ac", "updated_at")
+    search_fields = ("name",)

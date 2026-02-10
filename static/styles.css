@@ -347,6 +347,22 @@ body.is-anonymous .topbar {
   background: var(--panel-soft);
 }
 
+.search-preview-open {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.search-preview-open:hover {
+  background: var(--panel-soft);
+}
+
 .search-preview-row {
   display: grid !important;
   grid-template-columns: minmax(0, 1fr) 110px minmax(0, 1fr);
@@ -574,6 +590,26 @@ tbody tr:hover {
   border-radius: var(--radius);
   padding: 8px;
   background: #27344a;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.message-close {
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: rgba(18, 26, 40, 0.8);
+  color: var(--text);
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  line-height: 1;
+  text-transform: uppercase;
+  padding: 0;
 }
 
 .message.error {
@@ -603,6 +639,21 @@ tbody tr:hover {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.encounter-create-form {
+  margin-bottom: 12px;
+}
+
+.encounter-list {
+  gap: 12px;
+}
+
+.encounter-row {
+  padding: 10px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: rgba(24, 34, 52, 0.68);
 }
 
 .compendium-row-trigger {
@@ -1356,6 +1407,54 @@ tbody tr:hover {
 
 .tracker-monster-attack p {
   margin: 0;
+}
+
+.game-players-table td,
+.game-players-table th {
+  padding-top: 7px;
+  padding-bottom: 7px;
+  font-size: 13px;
+}
+
+.game-player-name {
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+
+.game-players-table .tracker-monster-ability-grid {
+  gap: 4px;
+}
+
+.game-players-table .tracker-monster-ability-grid div {
+  padding: 4px;
+}
+
+.game-players-table .tracker-monster-ability-grid strong {
+  font-size: 13px;
+}
+
+.game-player-edit-form {
+  display: grid;
+  gap: 8px;
+}
+
+.player-modal-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+}
+
+.player-ac-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  padding: 4px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: rgba(34, 48, 73, 0.82);
+  font-size: 12px;
 }
 
 .modal {

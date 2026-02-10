@@ -2,6 +2,8 @@ from django.conf import settings
 from django.db import models
 from django.db.models import Q
 
+from games.models import Encounter
+
 
 class TurnTrackerEntry(models.Model):
     """One initiative-row entity in a user's turn tracker."""
@@ -16,6 +18,7 @@ class TurnTrackerEntry(models.Model):
         GAME_INSTANCE = "game_instance", "Game Object Instance"
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="tracker_entries")
+    encounter = models.ForeignKey(Encounter, on_delete=models.CASCADE, related_name="tracker_entries", null=True, blank=True)
     name = models.CharField(max_length=255)
     entry_type = models.CharField(max_length=16, choices=EntryType.choices)
     initiative = models.IntegerField(null=True, blank=True)
@@ -37,12 +40,20 @@ class TurnTrackerEntry(models.Model):
 
     class Meta:
         ordering = ["sort_order", "id"]
-        indexes = [models.Index(fields=["user", "sort_order"])]
+        indexes = [
+            models.Index(fields=["user", "sort_order"]),
+            models.Index(fields=["user", "encounter", "sort_order"]),
+        ]
         constraints = [
             models.UniqueConstraint(
                 fields=["user"],
-                condition=Q(is_current=True),
-                name="unique_current_tracker_entry_per_user",
+                condition=Q(is_current=True, encounter__isnull=True),
+                name="unique_current_global_tracker_entry_per_user",
+            ),
+            models.UniqueConstraint(
+                fields=["user", "encounter"],
+                condition=Q(is_current=True, encounter__isnull=False),
+                name="unique_current_encounter_tracker_entry_per_user",
             )
         ]
 

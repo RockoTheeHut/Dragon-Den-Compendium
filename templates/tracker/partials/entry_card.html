@@ -6,6 +6,8 @@
   <div class="tracker-name-line">
     {% if entry.source_kind == "compendium_monster" %}
       <button class="tracker-entry-trigger" type="button" onclick="openTrackerMonsterModal({{ entry.id }})"><strong>{{ entry.name }}</strong></button>
+    {% elif entry.source_kind == "game_instance" and entry.entry_type == "player" %}
+      <button class="tracker-entry-trigger" type="button" onclick="openTrackerPlayerModal({{ entry.id }})"><strong>{{ entry.name }}</strong></button>
     {% else %}
       <strong>{{ entry.name }}</strong>
     {% endif %}

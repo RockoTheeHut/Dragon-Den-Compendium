@@ -1,7 +1,15 @@
 <section class="panel tracker-page">
   <div class="tracker-page-header">
-    <h1>Turn Tracker</h1>
-    <p class="muted">Initiative first. Add and edit from focused modals.</p>
+    {% if encounter %}
+      <div class="inline-header">
+        <h1>Turn Tracker: {{ encounter.title }}</h1>
+        <a class="button ghost small" href="{% url 'games:detail' encounter.game.id %}" hx-get="{% url 'games:detail' encounter.game.id %}" hx-target="#main-content" hx-push-url="true">Back to {{ encounter.game.title }}</a>
+      </div>
+      <p class="muted">Encounter-scoped tracker for this game.</p>
+    {% else %}
+      <h1>Turn Tracker</h1>
+      <p class="muted">Initiative first. Add and edit from focused modals.</p>
+    {% endif %}
   </div>
 
   {% include "tracker/partials/list_region.html" %}
@@ -44,5 +52,15 @@
       <button class="button ghost" type="button" onclick="closeTrackerModal('tracker-monster-modal')">Close</button>
     </div>
     <div id="tracker-monster-modal-content" class="tracker-modal-content muted">Choose a compendium monster entry.</div>
+  </div>
+</div>
+
+<div id="tracker-player-modal" class="modal tracker-modal hidden" onclick="if(event.target === this) closeTrackerModal('tracker-player-modal')">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>Player Card</h2>
+      <button class="button ghost" type="button" onclick="closeTrackerModal('tracker-player-modal')">Close</button>
+    </div>
+    <div id="tracker-player-modal-content" class="tracker-modal-content muted">Choose a game player entry.</div>
   </div>
 </div>

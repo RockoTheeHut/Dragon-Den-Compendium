@@ -45,6 +45,7 @@
       "tracker-edit-modal-content",
       "tracker-status-modal-content",
       "tracker-monster-modal-content",
+      "tracker-player-modal-content",
       "compendium-preview-modal-content",
       "notes-modal-content",
       "settings-modal-content",
@@ -161,7 +162,7 @@
     });
 
     preview.addEventListener("click", function (event) {
-      if (event.target.closest("a")) {
+      if (event.target.closest("a, button")) {
         hidePreview();
       }
     });
@@ -226,6 +227,14 @@
       "tracker-monster-modal",
       "#tracker-monster-modal-content",
       "/tracker/entries/" + entryId + "/monster/modal/"
+    );
+  }
+
+  function openTrackerPlayerModal(entryId) {
+    openModalAndLoad(
+      "tracker-player-modal",
+      "#tracker-player-modal-content",
+      "/tracker/entries/" + entryId + "/player/modal/"
     );
   }
 
@@ -422,6 +431,7 @@
   window.openTrackerEditModal = openTrackerEditModal;
   window.openTrackerStatusModal = openTrackerStatusModal;
   window.openTrackerMonsterModal = openTrackerMonsterModal;
+  window.openTrackerPlayerModal = openTrackerPlayerModal;
   window.openCompendiumPreviewModal = openCompendiumPreviewModal;
   window.closeCompendiumPreviewModal = closeCompendiumPreviewModal;
 })();

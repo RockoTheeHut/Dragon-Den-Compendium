@@ -1,0 +1,26 @@
+<div class="tracker-modal-content">
+  <h3 class="player-modal-title">
+    <span>{{ player_name }}</span>
+    <span class="player-ac-chip">AC {{ armor_class|default:"-" }}</span>
+  </h3>
+
+  <div class="tracker-monster-ability-grid">
+    <div><span class="muted">STR</span><strong>{{ strength|default:"-" }}</strong></div>
+    <div><span class="muted">DEX</span><strong>{{ dexterity|default:"-" }}</strong></div>
+    <div><span class="muted">CON</span><strong>{{ constitution|default:"-" }}</strong></div>
+    <div><span class="muted">INT</span><strong>{{ intelligence|default:"-" }}</strong></div>
+    <div><span class="muted">WIS</span><strong>{{ wisdom|default:"-" }}</strong></div>
+    <div><span class="muted">CHA</span><strong>{{ charisma|default:"-" }}</strong></div>
+  </div>
+
+  <section class="tracker-monster-attacks">
+    <h4>Notes</h4>
+    {% if notes %}
+      <article class="tracker-monster-attack">
+        <p class="muted">{{ notes }}</p>
+      </article>
+    {% else %}
+      <p class="muted">No notes.</p>
+    {% endif %}
+  </section>
+</div>

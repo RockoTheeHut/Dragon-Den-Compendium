@@ -1,48 +1,48 @@
 <section class="panel">
   <div class="inline-header">
     <h1>{{ game.title }}</h1>
-    <a class="button ghost" href="{% url 'games:list' %}" hx-get="{% url 'games:list' %}" hx-target="#main-content" hx-push-url="true">Back to games</a>
+    <a class="button ghost" href="{% url 'games:list' %}?all=1" hx-get="{% url 'games:list' %}?all=1" hx-target="#main-content" hx-push-url="true">Back to games</a>
   </div>
 </section>
 
 <section class="panel">
-  <h2>Game Objects</h2>
-  {% if instances %}
+  <div class="inline-header">
+    <h2>Game Players</h2>
+    <button class="button" type="button" onclick="openAddPlayerModal()">Add Player</button>
+  </div>
+  {% if players %}
     <div class="table-wrap">
-      <table>
+      <table class="game-players-table">
         <thead>
           <tr>
             <th>Name</th>
-            <th>Type</th>
-            <th>Base Object</th>
+            <th>AC</th>
+            <th>Stats</th>
             <th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          {% for instance in instances %}
+          {% for player in players %}
             <tr>
-              <td>{{ instance.name }}</td>
-              <td>{{ instance.object_type }}</td>
+              <td><strong class="game-player-name">{{ player.name }}</strong></td>
+              <td>{{ player.ac|default:"-" }}</td>
               <td>
-                <a href="{% url 'compendium:object_detail' instance.base_object.pk %}" hx-get="{% url 'compendium:object_detail' instance.base_object.pk %}" hx-target="#main-content" hx-push-url="true">
-                  {{ instance.base_object.name }}
-                </a>
+                <div class="tracker-monster-ability-grid">
+                  <div><span class="muted">STR</span><strong>{{ player.strength|default:"-" }}</strong></div>
+                  <div><span class="muted">DEX</span><strong>{{ player.dexterity|default:"-" }}</strong></div>
+                  <div><span class="muted">CON</span><strong>{{ player.constitution|default:"-" }}</strong></div>
+                  <div><span class="muted">INT</span><strong>{{ player.intelligence|default:"-" }}</strong></div>
+                  <div><span class="muted">WIS</span><strong>{{ player.wisdom|default:"-" }}</strong></div>
+                  <div><span class="muted">CHA</span><strong>{{ player.charisma|default:"-" }}</strong></div>
+                </div>
               </td>
               <td>
-                <details>
-                  <summary>Edit</summary>
-                  <form method="post" action="{% url 'games:edit_instance' game.id instance.id %}">
-                    {% csrf_token %}
-                    <input type="text" name="name" value="{{ instance.name }}" required>
-                    <textarea name="description" rows="3">{{ instance.description }}</textarea>
-                    <textarea name="data_text" rows="4">{{ instance.data|pprint }}</textarea>
-                    <button class="button" type="submit">Save</button>
-                  </form>
-                </details>
-                <form method="post" action="{% url 'games:remove_instance' game.id instance.id %}">
-                  {% csrf_token %}
-                  <button class="button danger" type="submit">Remove</button>
-                </form>
+                <button class="button small ghost" type="button" onclick="openGamePlayerEditModal({{ player.id }})">Edit</button>
+                <button
+                  class="button danger"
+                  type="button"
+                  onclick="openGamePlayerDeleteModal({{ player.id }}, '{{ player.name|escapejs }}')"
+                >Remove</button>
               </td>
             </tr>
           {% endfor %}
@@ -50,6 +50,171 @@
       </table>
     </div>
   {% else %}
-    <p>No objects added yet.</p>
+    <p>No players added yet.</p>
   {% endif %}
 </section>
+
+<div id="add-player-modal" class="modal hidden" onclick="if(event.target === this) closeAddPlayerModal()">
+  <div class="modal-content modal-tool">
+    <div class="modal-header">
+      <h3>Add Game Player</h3>
+      <button class="button ghost" type="button" onclick="closeAddPlayerModal()">Close</button>
+    </div>
+    <form
+      method="post"
+      action="{% url 'games:create_player' game.id %}"
+      hx-post="{% url 'games:create_player' game.id %}"
+      hx-target="#main-content"
+      hx-swap="innerHTML"
+      hx-on::after-request="if(event.detail.successful){ closeAddPlayerModal(); }"
+      class="tracker-entry-form"
+    >
+      {% csrf_token %}
+      <div class="tracker-form-grid">
+        <label>Name {{ player_form.name }}</label>
+        <label>AC {{ player_form.ac }}</label>
+        <label class="tracker-form-span">Notes {{ player_form.notes }}</label>
+        <div class="tracker-form-span">
+          <span class="muted">Base Stats</span>
+          <div class="tracker-monster-ability-grid">
+            <label>STR {{ player_form.strength }}</label>
+            <label>DEX {{ player_form.dexterity }}</label>
+            <label>CON {{ player_form.constitution }}</label>
+            <label>INT {{ player_form.intelligence }}</label>
+            <label>WIS {{ player_form.wisdom }}</label>
+            <label>CHA {{ player_form.charisma }}</label>
+          </div>
+        </div>
+      </div>
+      <div class="tracker-modal-actions">
+        <button class="button" type="submit">Create Player</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="game-player-edit-modal" class="modal hidden" onclick="if(event.target === this) closeGamePlayerEditModal()">
+  <div class="modal-content modal-tool">
+    <div class="modal-header">
+      <h3>Edit Game Player</h3>
+      <button class="button ghost" type="button" onclick="closeGamePlayerEditModal()">Close</button>
+    </div>
+    <div id="game-player-edit-modal-content" class="tracker-modal-content muted">Loading player form...</div>
+  </div>
+</div>
+
+<div id="game-player-delete-modal" class="modal hidden" onclick="if(event.target === this) closeGamePlayerDeleteModal()">
+  <div class="modal-content modal-small">
+    <div class="modal-header">
+      <h3>Delete Player</h3>
+      <button class="button ghost" type="button" onclick="closeGamePlayerDeleteModal()">Close</button>
+    </div>
+    <p id="game-player-delete-copy" class="muted">Delete this player?</p>
+    <form id="game-player-delete-form" method="post" action="">
+      {% csrf_token %}
+      <div class="tracker-modal-actions">
+        <button class="button ghost" type="button" onclick="closeGamePlayerDeleteModal()">Cancel</button>
+        <button class="button danger" type="submit">Delete</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<section class="panel">
+  <h2>Encounters</h2>
+  <form method="post" action="{% url 'games:create_encounter' game.id %}" class="inline-form encounter-create-form">
+    {% csrf_token %}
+    {{ encounter_form.title }}
+    <button class="button" type="submit">Create Encounter</button>
+  </form>
+  {% if encounters %}
+    <ul class="game-list encounter-list">
+      {% for encounter in encounters %}
+        <li class="game-row encounter-row">
+          <strong>{{ encounter.title }}</strong>
+          <a
+            class="button small"
+            href="{% url 'games:open_encounter_tracker' game.id encounter.id %}"
+            hx-get="{% url 'games:open_encounter_tracker' game.id encounter.id %}"
+            hx-target="#main-content"
+            hx-push-url="true"
+          >Open Tracker</a>
+          <form method="post" action="{% url 'games:delete_encounter' game.id encounter.id %}">
+            {% csrf_token %}
+            <button class="button danger small" type="submit">Delete</button>
+          </form>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted">No encounters yet.</p>
+  {% endif %}
+</section>
+
+<script>
+  function openAddPlayerModal() {
+    const modal = document.getElementById("add-player-modal");
+    if (!modal) return;
+    if (typeof window.openAppModal === "function") {
+      window.openAppModal(modal);
+      return;
+    }
+    modal.classList.remove("hidden");
+  }
+
+  function closeAddPlayerModal() {
+    const modal = document.getElementById("add-player-modal");
+    if (!modal) return;
+    if (typeof window.closeAppModal === "function") {
+      window.closeAppModal(modal);
+      return;
+    }
+    modal.classList.add("hidden");
+  }
+
+  function openGamePlayerEditModal(playerId) {
+    const modal = document.getElementById("game-player-edit-modal");
+    const target = document.getElementById("game-player-edit-modal-content");
+    if (!modal || !target || !window.htmx) return;
+    if (typeof window.openAppModal === "function") {
+      window.openAppModal(modal);
+    } else {
+      modal.classList.remove("hidden");
+    }
+    window.htmx.ajax("GET", "{% url 'games:edit_player_modal' game.id 0 %}".replace("/0/", "/" + playerId + "/"), "#game-player-edit-modal-content");
+  }
+
+  function closeGamePlayerEditModal() {
+    const modal = document.getElementById("game-player-edit-modal");
+    if (!modal) return;
+    if (typeof window.closeAppModal === "function") {
+      window.closeAppModal(modal);
+      return;
+    }
+    modal.classList.add("hidden");
+  }
+
+  function openGamePlayerDeleteModal(playerId, playerName) {
+    const modal = document.getElementById("game-player-delete-modal");
+    const form = document.getElementById("game-player-delete-form");
+    const copy = document.getElementById("game-player-delete-copy");
+    if (!modal || !form || !copy) return;
+    form.action = "{% url 'games:delete_player' game.id 0 %}".replace("/0/", "/" + playerId + "/");
+    copy.textContent = "Delete " + playerName + "?";
+    if (typeof window.openAppModal === "function") {
+      window.openAppModal(modal);
+      return;
+    }
+    modal.classList.remove("hidden");
+  }
+
+  function closeGamePlayerDeleteModal() {
+    const modal = document.getElementById("game-player-delete-modal");
+    if (!modal) return;
+    if (typeof window.closeAppModal === "function") {
+      window.closeAppModal(modal);
+      return;
+    }
+    modal.classList.add("hidden");
+  }
+</script>

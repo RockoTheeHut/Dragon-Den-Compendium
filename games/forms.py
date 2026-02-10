@@ -4,7 +4,7 @@ from django import forms
 
 from compendium.forms import JSONTextareaField
 
-from .models import Game, GameObjectInstance
+from .models import Encounter, Game, GameObjectInstance, GamePlayer
 
 
 class GameForm(forms.ModelForm):
@@ -33,3 +33,28 @@ class GameObjectInstanceEditForm(forms.ModelForm):
         if commit:
             instance.save()
         return instance
+
+
+class EncounterForm(forms.ModelForm):
+    class Meta:
+        model = Encounter
+        fields = ["title"]
+
+
+class GamePlayerForm(forms.ModelForm):
+    class Meta:
+        model = GamePlayer
+        fields = [
+            "name",
+            "notes",
+            "ac",
+            "strength",
+            "dexterity",
+            "constitution",
+            "intelligence",
+            "wisdom",
+            "charisma",
+        ]
+        widgets = {
+            "notes": forms.Textarea(attrs={"rows": 3}),
+        }

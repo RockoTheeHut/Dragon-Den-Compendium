@@ -36,3 +36,44 @@ class GameObjectInstance(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.game.title})"
+
+
+class Encounter(models.Model):
+    """One encounter inside a game; each encounter can have its own turn tracker state."""
+
+    game = models.ForeignKey(Game, on_delete=models.CASCADE, related_name="encounters")
+    title = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at"]
+        indexes = [models.Index(fields=["game", "title"])]
+
+    def __str__(self):
+        return f"{self.title} ({self.game.title})"
+
+
+class GamePlayer(models.Model):
+    """A reusable player record inside a game for quick encounter adds."""
+
+    game = models.ForeignKey(Game, on_delete=models.CASCADE, related_name="players")
+    name = models.CharField(max_length=255)
+    notes = models.TextField(blank=True)
+    ac = models.PositiveSmallIntegerField(null=True, blank=True)
+    base_stat_block = models.TextField(blank=True)
+    strength = models.PositiveSmallIntegerField(null=True, blank=True)
+    dexterity = models.PositiveSmallIntegerField(null=True, blank=True)
+    constitution = models.PositiveSmallIntegerField(null=True, blank=True)
+    intelligence = models.PositiveSmallIntegerField(null=True, blank=True)
+    wisdom = models.PositiveSmallIntegerField(null=True, blank=True)
+    charisma = models.PositiveSmallIntegerField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name", "id"]
+        indexes = [models.Index(fields=["game", "name"])]
+
+    def __str__(self):
+        return f"{self.name} ({self.game.title})"

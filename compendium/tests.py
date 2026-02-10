@@ -282,3 +282,25 @@ class CompendiumSortOrderTests(TestCase):
                 GameObject.ObjectType.BACKGROUND,
             ],
         )
+
+
+class CompendiumSearchPreviewTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="searcher", password="pw12345!")
+        self.object = GameObject.objects.create(
+            system="dnd5e",
+            object_type=GameObject.ObjectType.SPELL,
+            name="Magic Missile",
+            source=GameObject.SourceType.CUSTOM,
+        )
+
+    def test_search_preview_rows_open_modal(self):
+        self.client.force_login(self.user)
+        response = self.client.get(
+            reverse("compendium:search_preview"),
+            data={"q": "Magic"},
+            HTTP_HX_REQUEST="true",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "search-preview-open")
+        self.assertContains(response, f"openCompendiumPreviewModal({self.object.pk})")

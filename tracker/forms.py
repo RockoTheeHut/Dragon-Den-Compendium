@@ -1,7 +1,7 @@
 from django import forms
 
 from compendium.models import GameObject
-from games.models import GameObjectInstance
+from games.models import GamePlayer
 
 from .models import TurnTrackerEntry
 
@@ -58,30 +58,24 @@ class AddFromCompendiumForm(forms.Form):
         self.fields["source"].queryset = GameObject.objects.filter(object_type=GameObject.ObjectType.MONSTER).order_by("name")
 
 
-class AddFromGameInstanceForm(forms.Form):
-    """Create tracker entries from per-game object instances."""
-    source = forms.ModelChoiceField(queryset=GameObjectInstance.objects.none())
-    entry_type = forms.ChoiceField(
-        choices=[
-            (TurnTrackerEntry.EntryType.NPC, "NPC"),
-            (TurnTrackerEntry.EntryType.ENEMY, "Enemy"),
-        ]
-    )
+class AddFromGamePlayerForm(forms.Form):
+    """Create tracker entries from game-scoped player rows."""
+    source = forms.ModelChoiceField(queryset=GamePlayer.objects.none())
     name = forms.CharField(required=False, max_length=255)
     initiative = forms.IntegerField(required=False)
     is_active = forms.BooleanField(required=False, initial=True)
-    hp_current = forms.IntegerField(required=False)
-    hp_max = forms.IntegerField(required=False)
-    items_text = forms.CharField(required=False)
     notes = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
 
     def __init__(self, *args, **kwargs):
-        """Restrict selectable instances to games owned by the current user."""
+        """Restrict selectable players to games owned by the current user."""
         user = kwargs.pop("user", None)
+        game = kwargs.pop("game", None)
         super().__init__(*args, **kwargs)
-        queryset = GameObjectInstance.objects.select_related("game").order_by("name")
+        queryset = GamePlayer.objects.select_related("game").order_by("name", "id")
         if user and user.is_authenticated:
             queryset = queryset.filter(game__created_by=user)
+            if game is not None:
+                queryset = queryset.filter(game=game)
         else:
             queryset = queryset.none()
         self.fields["source"].queryset = queryset

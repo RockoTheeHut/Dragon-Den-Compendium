@@ -3,7 +3,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from compendium.models import GameObject
-from games.models import Game, GameObjectInstance
+from games.models import Encounter, Game, GamePlayer
 
 from .models import StatusEffect, TurnTrackerEntry
 
@@ -203,65 +203,107 @@ class TurnTrackerTests(TestCase):
         self.assertEqual(b.sort_order, 0)
         self.assertEqual(a.sort_order, 1)
 
-    def test_add_from_game_instance_accepts_any_instance_type(self):
-        base_object = GameObject.objects.create(
-            system="dnd5e",
-            object_type=GameObject.ObjectType.ITEM,
-            name="Potion of Healing",
-            source=GameObject.SourceType.CUSTOM,
-            data={"healing": "2d4+2"},
-        )
+    def test_add_from_game_player_creates_player_entry(self):
         game = Game.objects.create(title="Campaign", created_by=self.user)
-        instance = GameObjectInstance.objects.create(
+        player = GamePlayer.objects.create(
             game=game,
-            base_object=base_object,
-            name=base_object.name,
-            object_type=base_object.object_type,
-            description="",
-            data=base_object.data,
+            name="Aria",
+            notes="Longsword",
+            ac=16,
+            strength=16,
+            dexterity=14,
+            constitution=13,
+            intelligence=12,
+            wisdom=10,
+            charisma=8,
         )
 
         response = self.client.post(
-            reverse("tracker:add_from_instance"),
+            reverse("tracker:add_from_player"),
             data={
-                "source": instance.pk,
-                "entry_type": TurnTrackerEntry.EntryType.NPC,
-                "name": "Alchemist",
-                "initiative": "",
+                "source": player.pk,
+                "name": "",
+                "initiative": "11",
                 "is_active": "on",
                 "notes": "",
+                "status_effect_name": "Bless",
+                "status_effect_rounds": "3",
             },
         )
 
         self.assertEqual(response.status_code, 200)
-        entry = TurnTrackerEntry.objects.get(user=self.user, name="Alchemist")
+        entry = TurnTrackerEntry.objects.get(user=self.user, name="Aria")
         self.assertEqual(entry.source_kind, TurnTrackerEntry.SourceKind.GAME_INSTANCE)
-        self.assertEqual(entry.source_snapshot.get("healing"), "2d4+2")
+        self.assertEqual(entry.entry_type, TurnTrackerEntry.EntryType.PLAYER)
+        self.assertEqual(entry.source_snapshot.get("game_player_id"), player.pk)
+        self.assertEqual(entry.source_snapshot.get("ac"), 16)
+        self.assertEqual(entry.source_snapshot.get("notes"), "Longsword")
+        self.assertEqual(entry.source_snapshot.get("strength"), 16)
+        self.assertEqual(entry.source_snapshot.get("dexterity"), 14)
+        self.assertEqual(entry.source_snapshot.get("constitution"), 13)
+        self.assertEqual(entry.source_snapshot.get("intelligence"), 12)
+        self.assertEqual(entry.source_snapshot.get("wisdom"), 10)
+        self.assertEqual(entry.source_snapshot.get("charisma"), 8)
+        self.assertEqual(entry.notes, "Longsword")
+        self.assertEqual(entry.initiative, 11)
+        effect = StatusEffect.objects.get(entry=entry, name="Bless")
+        self.assertEqual(effect.duration_rounds, 3)
 
-    def test_add_from_game_instance_rejects_other_users_instance(self):
-        other_user = User.objects.create_user(username="other-dm", password="pw12345!")
-        base_object = GameObject.objects.create(
-            system="dnd5e",
-            object_type=GameObject.ObjectType.ITEM,
-            name="Hidden Relic",
-            source=GameObject.SourceType.CUSTOM,
-            data={"value": 99},
+    def test_player_modal_renders_player_card_for_game_player_entry(self):
+        game = Game.objects.create(title="Campaign", created_by=self.user)
+        encounter = Encounter.objects.create(game=game, title="Bridge Fight")
+        player = GamePlayer.objects.create(
+            game=game,
+            name="Lyra",
+            notes="Party scout",
+            ac=15,
+            strength=10,
+            dexterity=18,
+            constitution=12,
+            intelligence=14,
+            wisdom=13,
+            charisma=11,
         )
+        self.client.get(reverse("tracker:dashboard"), data={"encounter": encounter.pk})
+        self.client.post(
+            reverse("tracker:add_from_player"),
+            data={
+                "source": player.pk,
+                "name": "",
+                "initiative": "17",
+                "is_active": "on",
+                "notes": "",
+            },
+            HTTP_HX_REQUEST="true",
+        )
+        entry = TurnTrackerEntry.objects.get(user=self.user, encounter=encounter, name="Lyra")
+
+        response = self.client.get(
+            reverse("tracker:entry_player_modal", args=[entry.id]),
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Lyra")
+        self.assertContains(response, "Armor Class:")
+        self.assertContains(response, "15")
+        self.assertContains(response, "STR")
+        self.assertContains(response, "DEX")
+        self.assertContains(response, "Party scout")
+
+    def test_add_from_game_player_rejects_other_users_player(self):
+        other_user = User.objects.create_user(username="other-dm", password="pw12345!")
         other_game = Game.objects.create(title="Other Table", created_by=other_user)
-        other_instance = GameObjectInstance.objects.create(
+        other_player = GamePlayer.objects.create(
             game=other_game,
-            base_object=base_object,
-            name=base_object.name,
-            object_type=base_object.object_type,
-            description="",
-            data=base_object.data,
+            name="Hidden PC",
+            notes="",
         )
 
         response = self.client.post(
-            reverse("tracker:add_from_instance"),
+            reverse("tracker:add_from_player"),
             data={
-                "source": other_instance.pk,
-                "entry_type": TurnTrackerEntry.EntryType.NPC,
+                "source": other_player.pk,
                 "name": "Should Fail",
                 "initiative": "",
                 "is_active": "on",
@@ -342,3 +384,27 @@ class TurnTrackerTests(TestCase):
         second.refresh_from_db()
         self.assertTrue(first.is_current)
         self.assertFalse(second.is_current)
+
+    def test_dashboard_with_encounter_scope_shows_only_encounter_entries(self):
+        game = Game.objects.create(title="Campaign", created_by=self.user)
+        encounter = Encounter.objects.create(game=game, title="Bandit Fight")
+        TurnTrackerEntry.objects.create(
+            user=self.user,
+            encounter=None,
+            name="Global Entry",
+            entry_type=TurnTrackerEntry.EntryType.NPC,
+            sort_order=0,
+        )
+        TurnTrackerEntry.objects.create(
+            user=self.user,
+            encounter=encounter,
+            name="Encounter Entry",
+            entry_type=TurnTrackerEntry.EntryType.ENEMY,
+            sort_order=0,
+        )
+
+        response = self.client.get(reverse("tracker:dashboard"), data={"encounter": encounter.pk})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Encounter Entry")
+        self.assertNotContains(response, "Global Entry")

@@ -1,0 +1,30 @@
+<div class="tracker-modal-content">
+  <form
+    method="post"
+    action="{% url 'games:edit_player' game.id player.id %}"
+    hx-post="{% url 'games:edit_player' game.id player.id %}"
+    hx-target="#main-content"
+    hx-swap="innerHTML"
+    hx-on::after-request="if(event.detail.successful){ closeGamePlayerEditModal(); }"
+    class="game-player-edit-form"
+  >
+    {% csrf_token %}
+    <label>Name {{ form.name }}</label>
+    <label>AC {{ form.ac }}</label>
+    <label>Notes {{ form.notes }}</label>
+    <div>
+      <span class="muted">Base Stats</span>
+      <div class="tracker-monster-ability-grid">
+        <label>STR {{ form.strength }}</label>
+        <label>DEX {{ form.dexterity }}</label>
+        <label>CON {{ form.constitution }}</label>
+        <label>INT {{ form.intelligence }}</label>
+        <label>WIS {{ form.wisdom }}</label>
+        <label>CHA {{ form.charisma }}</label>
+      </div>
+    </div>
+    <div class="tracker-modal-actions">
+      <button class="button" type="submit">Save Player</button>
+    </div>
+  </form>
+</div>
