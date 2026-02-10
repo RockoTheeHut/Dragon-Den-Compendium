@@ -1,7 +1,7 @@
 # Dragon Den Compendium
 
-Open source D&D DM helper app (roughly 70% AI vibe-coded) for Desktop, Laptop, and iPad.  
-Built with Django + HTMX for a local-first workflow with optional Docker deployment.
+Open source D&D DM helper app (roughly 70% AI, and vibe-coded) for Desktop, Laptop, and iPad.  
+Built with Django + HTMX for a local-first with optional Docker deployment.
 
 ## What It Does
 
