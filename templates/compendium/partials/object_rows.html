@@ -1,5 +1,5 @@
 {% for object in objects %}
-  <tr>
+  <tr class="compendium-row">
     <td id="favorite-button-{{ object.id }}">
       <form method="post" action="{% url 'compendium:toggle_favorite' object.pk %}" hx-post="{% url 'compendium:toggle_favorite' object.pk %}" hx-target="#favorite-button-{{ object.pk }}" hx-swap="innerHTML">
         {% csrf_token %}

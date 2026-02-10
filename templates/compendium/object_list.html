@@ -1,42 +1,42 @@
-<section class="panel">
-  <div class="inline-header">
-    <h1>Compendium</h1>
-    <div class="inline-form">
-      <a class="button small ghost" href="{% url 'compendium:object_create' %}" hx-get="{% url 'compendium:object_create' %}" hx-target="#main-content" hx-push-url="true">New Object</a>
-      <a class="button small ghost" href="{% url 'compendium:tags' %}" hx-get="{% url 'compendium:tags' %}" hx-target="#main-content" hx-push-url="true">Tags</a>
+<section class="panel tracker-page compendium-page">
+  <div class="tracker-page-header">
+    <div class="inline-header">
+      <h1>Compendium</h1>
+      <div class="inline-form">
+        <a class="button small ghost" href="{% url 'compendium:object_create' %}" hx-get="{% url 'compendium:object_create' %}" hx-target="#main-content" hx-push-url="true">New Object</a>
+        <a class="button small ghost" href="{% url 'compendium:tags' %}" hx-get="{% url 'compendium:tags' %}" hx-target="#main-content" hx-push-url="true">Tags</a>
+      </div>
     </div>
+    <form method="get" class="inline-form filters-form">
+      <input type="search" name="q" value="{{ active_filters.q }}" placeholder="Search...">
+      <select name="object_type">
+        <option value="">All types</option>
+        {% for value, label in object_type_choices %}
+          <option value="{{ value }}" {% if active_filters.object_type == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <select name="tag">
+        <option value="">All tags</option>
+        {% for tag in tags %}
+          <option value="{{ tag.id }}" {% if active_filters.tag == tag.id|stringformat:'s' %}selected{% endif %}>{{ tag.name }}</option>
+        {% endfor %}
+      </select>
+      <label>
+        <input type="checkbox" name="favorites" value="1" {% if active_filters.favorites == '1' %}checked{% endif %}>
+        Favorites only
+      </label>
+      <select name="sort">
+        <option value="">Default sort</option>
+        <option value="favorites" {% if active_filters.sort == 'favorites' %}selected{% endif %}>Favorites first</option>
+      </select>
+      <button class="button" type="submit">Apply</button>
+    </form>
   </div>
-  <form method="get" class="inline-form filters-form">
-    <input type="search" name="q" value="{{ active_filters.q }}" placeholder="Search...">
-    <select name="object_type">
-      <option value="">All types</option>
-      {% for value, label in object_type_choices %}
-        <option value="{{ value }}" {% if active_filters.object_type == value %}selected{% endif %}>{{ label }}</option>
-      {% endfor %}
-    </select>
-    <select name="tag">
-      <option value="">All tags</option>
-      {% for tag in tags %}
-        <option value="{{ tag.id }}" {% if active_filters.tag == tag.id|stringformat:'s' %}selected{% endif %}>{{ tag.name }}</option>
-      {% endfor %}
-    </select>
-    <label>
-      <input type="checkbox" name="favorites" value="1" {% if active_filters.favorites == '1' %}checked{% endif %}>
-      Favorites only
-    </label>
-    <select name="sort">
-      <option value="">Default sort</option>
-      <option value="favorites" {% if active_filters.sort == 'favorites' %}selected{% endif %}>Favorites first</option>
-    </select>
-    <button class="button" type="submit">Apply</button>
-  </form>
-</section>
 
-<section class="panel">
   <p class="muted">Showing {{ objects|length }} of {{ page_obj.paginator.count }} objects on this page load.</p>
   {% if objects %}
-    <div class="table-wrap">
-      <table>
+    <div class="table-wrap compendium-table-wrap">
+      <table class="compendium-table">
         <thead>
           <tr>
             <th>Fav</th>

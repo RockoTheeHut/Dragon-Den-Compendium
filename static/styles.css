@@ -115,10 +115,9 @@ body.is-anonymous .app-shell {
 }
 
 .nav-link {
-  display: grid;
-  grid-template-columns: 20px minmax(0, 1fr);
+  display: flex;
   align-items: center;
-  column-gap: 10px;
+  gap: 10px;
   padding: 10px;
   border-radius: var(--radius);
   background: rgba(255, 255, 255, 0.05);
@@ -153,7 +152,6 @@ body.is-anonymous .app-shell {
   font-weight: 700;
   line-height: 1;
   text-align: center;
-  margin: 0 auto;
 }
 
 .nav-link-icon-image-wrap {
@@ -192,8 +190,8 @@ body.is-anonymous .app-shell {
 }
 
 .sidebar.collapsed .nav-link {
-  grid-template-columns: 1fr;
-  justify-items: center;
+  justify-content: center;
+  gap: 0;
   padding-left: 8px;
   padding-right: 8px;
 }
@@ -686,6 +684,39 @@ tbody tr:hover {
 
 .compendium-preview-card p {
   margin: 0;
+}
+
+.compendium-page {
+  max-width: 1320px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 18px 20px 20px;
+}
+
+.compendium-table-wrap {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  overflow: auto;
+  background: rgba(22, 30, 46, 0.74);
+}
+
+.compendium-table th,
+.compendium-table td {
+  padding: 12px 10px;
+  vertical-align: middle;
+}
+
+.compendium-table th {
+  background: rgba(32, 44, 67, 0.88);
+  border-bottom-color: var(--border-strong);
+}
+
+.compendium-row {
+  transition: background-color var(--motion-fast) ease;
+}
+
+.compendium-row:hover {
+  background: rgba(88, 134, 209, 0.1);
 }
 
 .compendium-preview-disclosure {
@@ -1748,8 +1779,8 @@ form.htmx-request button[type="submit"] {
   }
 
   .sidebar.collapsed .nav-link {
-    grid-template-columns: 20px minmax(0, 1fr);
-    justify-items: stretch;
+    justify-content: flex-start;
+    gap: 10px;
     padding-left: 10px;
     padding-right: 10px;
   }
