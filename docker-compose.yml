@@ -8,16 +8,28 @@ services:
     env_file:
       - .env
     environment:
-      DJANGO_SETTINGS_MODULE: dragon_den.settings.base
-      DEBUG: "false"
-      ALLOWED_HOSTS: "127.0.0.1,localhost"
-      SQLITE_PATH: "/app/data/db.sqlite3"
-      DJANGO_MIGRATE: "1"
-      DJANGO_COLLECTSTATIC: "1"
-      PORT: "8000"
+      DJANGO_SETTINGS_MODULE: ${DJANGO_SETTINGS_MODULE:-dragon_den.settings.base}
+      SECRET_KEY: ${SECRET_KEY:-replace-me-in-production}
+      DEBUG: ${DEBUG:-false}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-127.0.0.1,localhost}
+      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-}
+      TIME_ZONE: ${TIME_ZONE:-America/New_York}
+      SQLITE_PATH: ${SQLITE_PATH:-/app/data/db.sqlite3}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_DEFAULT_MODEL: ${OPENAI_DEFAULT_MODEL:-gpt-5-mini}
+      SERVER_COMPENDIUM_XML_PATH: ${SERVER_COMPENDIUM_XML_PATH:-/app/compendium_xml/server-compendium.xml}
+      SERVER_COMPENDIUM_SYSTEM: ${SERVER_COMPENDIUM_SYSTEM:-dnd5e}
+      DJANGO_MIGRATE: ${DJANGO_MIGRATE:-1}
+      DJANGO_COLLECTSTATIC: ${DJANGO_COLLECTSTATIC:-1}
+      PERF_GUARD_ON_STARTUP: ${PERF_GUARD_ON_STARTUP:-1}
+      PERF_GUARD_STARTUP_ITERATIONS: ${PERF_GUARD_STARTUP_ITERATIONS:-2}
+      PORT: ${PORT:-8000}
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-3}
+      GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-120}
     volumes:
       - app_data:/app/data
       - static_data:/app/staticfiles
+      - ./compendium_xml:/app/compendium_xml:ro
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8000/healthz/"]
       interval: 30s
@@ -26,6 +38,28 @@ services:
       start_period: 20s
     restart: unless-stopped
 
+  caddy:
+    image: caddy:2.8
+    container_name: dragon-den-caddy
+    profiles: ["proxy"]
+    depends_on:
+      - web
+    ports:
+      - "80:80"
+      - "443:443"
+    env_file:
+      - .env
+    environment:
+      CADDY_SITE_ADDRESS: ${CADDY_SITE_ADDRESS:-localhost}
+      CADDY_EMAIL: ${CADDY_EMAIL:-}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+
 volumes:
   app_data:
   static_data:
+  caddy_data:
+  caddy_config:

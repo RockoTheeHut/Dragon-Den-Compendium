@@ -1,0 +1,16 @@
+services:
+  web:
+    environment:
+      DEBUG: "false"
+      DJANGO_SETTINGS_MODULE: dragon_den.settings.base
+      DJANGO_MIGRATE: ${DJANGO_MIGRATE:-1}
+      DJANGO_COLLECTSTATIC: ${DJANGO_COLLECTSTATIC:-1}
+      PERF_GUARD_ON_STARTUP: ${PERF_GUARD_ON_STARTUP:-1}
+      PERF_GUARD_STARTUP_ITERATIONS: ${PERF_GUARD_STARTUP_ITERATIONS:-2}
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-4}
+      GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-120}
+    restart: always
+
+  caddy:
+    profiles: []
+    restart: always

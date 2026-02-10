@@ -6,10 +6,12 @@ from django.views.decorators.http import require_POST
 
 from core.rendering import render_page
 
-from compendium.models import GameObject
-
 from .forms import GameForm, GameObjectInstanceEditForm
 from .models import Game, GameObjectInstance
+
+
+def _user_can_access_game(user, game):
+    return bool(user and user.is_authenticated and game.created_by_id == user.id)
 
 
 @login_required
@@ -25,13 +27,15 @@ def game_list(request):
     else:
         form = GameForm()
 
-    games = Game.objects.select_related("created_by")
+    games = Game.objects.select_related("created_by").filter(created_by=request.user)
     return render_page(request, "games/game_list.html", {"games": games, "form": form})
 
 
 @login_required
 def game_detail(request, pk):
     game = get_object_or_404(Game.objects.select_related("created_by"), pk=pk)
+    if not _user_can_access_game(request.user, game):
+        return HttpResponseForbidden("Only the creator can view this game.")
     instances = game.object_instances.select_related("base_object").order_by("name")
 
     return render_page(
@@ -48,7 +52,7 @@ def game_detail(request, pk):
 @require_POST
 def delete_game(request, pk):
     game = get_object_or_404(Game, pk=pk)
-    if game.created_by != request.user and not request.user.is_staff:
+    if not _user_can_access_game(request.user, game):
         return HttpResponseForbidden("Only the creator can delete this game.")
 
     game.delete()
@@ -58,30 +62,10 @@ def delete_game(request, pk):
 
 @login_required
 @require_POST
-def add_object_to_game(request, game_id, object_id):
-    game = get_object_or_404(Game, pk=game_id)
-    base = get_object_or_404(GameObject, pk=object_id)
-
-    GameObjectInstance.objects.create(
-        game=game,
-        base_object=base,
-        name=base.name,
-        object_type=base.object_type,
-        description=base.description,
-        data=base.data,
-    )
-    messages.success(request, f"Added '{base.name}' to {game.title}.")
-
-    next_url = request.POST.get("next")
-    if next_url:
-        return redirect(next_url)
-    return redirect("games:detail", pk=game.pk)
-
-
-@login_required
-@require_POST
 def edit_instance(request, game_id, instance_id):
     game = get_object_or_404(Game, pk=game_id)
+    if not _user_can_access_game(request.user, game):
+        return HttpResponseForbidden("Only the creator can edit this game.")
     instance = get_object_or_404(GameObjectInstance, pk=instance_id, game=game)
     form = GameObjectInstanceEditForm(request.POST, instance=instance)
     if form.is_valid():
@@ -96,6 +80,8 @@ def edit_instance(request, game_id, instance_id):
 @require_POST
 def remove_instance(request, game_id, instance_id):
     game = get_object_or_404(Game, pk=game_id)
+    if not _user_can_access_game(request.user, game):
+        return HttpResponseForbidden("Only the creator can edit this game.")
     instance = get_object_or_404(GameObjectInstance, pk=instance_id, game=game)
     instance.delete()
     messages.success(request, "Game object removed.")

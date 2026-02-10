@@ -238,6 +238,41 @@ class TurnTrackerTests(TestCase):
         self.assertEqual(entry.source_kind, TurnTrackerEntry.SourceKind.GAME_INSTANCE)
         self.assertEqual(entry.source_snapshot.get("healing"), "2d4+2")
 
+    def test_add_from_game_instance_rejects_other_users_instance(self):
+        other_user = User.objects.create_user(username="other-dm", password="pw12345!")
+        base_object = GameObject.objects.create(
+            system="dnd5e",
+            object_type=GameObject.ObjectType.ITEM,
+            name="Hidden Relic",
+            source=GameObject.SourceType.CUSTOM,
+            data={"value": 99},
+        )
+        other_game = Game.objects.create(title="Other Table", created_by=other_user)
+        other_instance = GameObjectInstance.objects.create(
+            game=other_game,
+            base_object=base_object,
+            name=base_object.name,
+            object_type=base_object.object_type,
+            description="",
+            data=base_object.data,
+        )
+
+        response = self.client.post(
+            reverse("tracker:add_from_instance"),
+            data={
+                "source": other_instance.pk,
+                "entry_type": TurnTrackerEntry.EntryType.NPC,
+                "name": "Should Fail",
+                "initiative": "",
+                "is_active": "on",
+                "notes": "",
+            },
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(TurnTrackerEntry.objects.filter(user=self.user, name="Should Fail").exists())
+
     def test_dashboard_is_list_first_and_has_add_entry_button(self):
         response = self.client.get(reverse("tracker:dashboard"))
         self.assertEqual(response.status_code, 200)

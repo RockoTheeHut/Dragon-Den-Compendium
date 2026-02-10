@@ -1,12 +1,33 @@
 #!/bin/sh
 set -e
 
+echo "Starting Dragon Den Compendium..."
+
+if [ -z "${OPENAI_API_KEY:-}" ]; then
+  echo "WARNING: OPENAI_API_KEY is empty. Magic item generation will be disabled until configured."
+fi
+
+if [ -n "${SERVER_COMPENDIUM_XML_PATH:-}" ]; then
+  if [ ! -f "${SERVER_COMPENDIUM_XML_PATH}" ]; then
+    echo "WARNING: SERVER_COMPENDIUM_XML_PATH is set but file does not exist: ${SERVER_COMPENDIUM_XML_PATH}"
+  else
+    echo "Server compendium XML detected at: ${SERVER_COMPENDIUM_XML_PATH}"
+  fi
+else
+  echo "INFO: SERVER_COMPENDIUM_XML_PATH is not set. Server-wide XML import toggle will be unavailable."
+fi
+
 if [ "${DJANGO_MIGRATE:-1}" = "1" ]; then
   python manage.py migrate --noinput
 fi
 
 if [ "${DJANGO_COLLECTSTATIC:-1}" = "1" ]; then
   python manage.py collectstatic --noinput
+fi
+
+if [ "${PERF_GUARD_ON_STARTUP:-1}" = "1" ]; then
+  echo "Running perf guard in startup warning mode..."
+  python scripts/perf_guard.py --warn-only --iterations "${PERF_GUARD_STARTUP_ITERATIONS:-2}" || true
 fi
 
 exec gunicorn dragon_den.wsgi:application \

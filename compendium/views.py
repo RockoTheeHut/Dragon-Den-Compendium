@@ -1254,8 +1254,8 @@ def quick_search_redirect(request):
 @require_POST
 def remove_tag(request, pk):
     tag = get_object_or_404(Tag, pk=pk)
-    if tag.is_system_tag and not request.user.is_staff:
-        return HttpResponseBadRequest("System tags can only be deleted by staff users.")
+    if tag.is_system_tag:
+        return HttpResponseBadRequest("System tags cannot be deleted.")
     tag.delete()
     messages.success(request, "Tag deleted.")
     return redirect("compendium:tags")

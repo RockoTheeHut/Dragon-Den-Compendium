@@ -1,10 +1,9 @@
 from django import forms
-from django.db.models import Max
 
 from compendium.models import GameObject
 from games.models import GameObjectInstance
 
-from .models import StatusEffect, TurnTrackerEntry
+from .models import TurnTrackerEntry
 
 
 class TurnTrackerEntryForm(forms.ModelForm):
@@ -73,21 +72,11 @@ class AddFromGameInstanceForm(forms.Form):
     notes = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
 
     def __init__(self, *args, **kwargs):
+        user = kwargs.pop("user", None)
         super().__init__(*args, **kwargs)
-        self.fields["source"].queryset = GameObjectInstance.objects.order_by("name")
-
-
-class StatusEffectForm(forms.ModelForm):
-    class Meta:
-        model = StatusEffect
-        fields = ["name", "duration_rounds"]
-
-    def save_for_entry(self, entry):
-        max_sort = entry.status_effects.aggregate(max_sort=Max("sort_order")).get("max_sort")
-        effect = self.save(commit=False)
-        effect.entry = entry
-        effect.remaining_rounds = effect.duration_rounds
-        effect.is_running = True
-        effect.sort_order = (max_sort + 1) if max_sort is not None else 0
-        effect.save()
-        return effect
+        queryset = GameObjectInstance.objects.select_related("game").order_by("name")
+        if user and user.is_authenticated:
+            queryset = queryset.filter(game__created_by=user)
+        else:
+            queryset = queryset.none()
+        self.fields["source"].queryset = queryset

@@ -134,11 +134,14 @@ def _list_context(user):
     }
 
 
-def _add_forms_context():
+def _add_forms_context(user):
     return {
         "manual_form": TurnTrackerEntryForm(initial={"entry_type": TurnTrackerEntry.EntryType.PLAYER, "is_active": True}),
         "from_compendium_form": AddFromCompendiumForm(initial={"entry_type": TurnTrackerEntry.EntryType.ENEMY, "is_active": True}),
-        "from_instance_form": AddFromGameInstanceForm(initial={"entry_type": TurnTrackerEntry.EntryType.ENEMY, "is_active": True}),
+        "from_instance_form": AddFromGameInstanceForm(
+            user=user,
+            initial={"entry_type": TurnTrackerEntry.EntryType.ENEMY, "is_active": True},
+        ),
     }
 
 
@@ -193,7 +196,7 @@ def dashboard(request):
 @login_required
 @require_GET
 def add_entry_modal(request):
-    return render(request, "tracker/partials/add_entry_modal_content.html", _add_forms_context())
+    return render(request, "tracker/partials/add_entry_modal_content.html", _add_forms_context(request.user))
 
 
 @login_required
@@ -247,7 +250,7 @@ def add_from_compendium(request):
 @login_required
 @require_POST
 def add_from_game_instance(request):
-    form = AddFromGameInstanceForm(request.POST)
+    form = AddFromGameInstanceForm(request.POST, user=request.user)
     if form.is_valid():
         source = form.cleaned_data["source"]
         hp_current_default, hp_max_default = _extract_hp(source.data)
