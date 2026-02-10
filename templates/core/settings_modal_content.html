@@ -1,0 +1,72 @@
+<section class="settings-modal-content">
+  <p class="muted settings-intro">Manage your account settings and compendium imports.</p>
+
+  {% if import_result_message %}
+    <p class="settings-status">{{ import_result_message }}</p>
+  {% endif %}
+
+  <section class="settings-card">
+    <h3 class="settings-card-title">AI Settings</h3>
+    <form id="user-settings-form" method="post" action="{% url 'core:save_settings' %}" hx-post="{% url 'core:save_settings' %}" hx-target="#settings-modal-content" hx-swap="innerHTML" class="settings-form-grid">
+      {% csrf_token %}
+      <div class="settings-field">
+        {{ settings_form.openai_api_key.label_tag }}
+        {{ settings_form.openai_api_key }}
+      </div>
+      <p class="muted settings-help-text">
+        {% if has_user_openai_api_key %}
+          A personal API key is currently saved for your account.
+        {% else %}
+          No personal API key is saved. The app will use the server-level key when available.
+        {% endif %}
+      </p>
+      <button class="button" type="submit">Save Settings</button>
+    </form>
+  </section>
+
+  <section class="settings-card">
+    <h3 class="settings-card-title">Import User XML</h3>
+    <form id="settings-import-xml-form" method="post" action="{% url 'core:import_user_compendium_xml' %}" enctype="multipart/form-data" hx-post="{% url 'core:import_user_compendium_xml' %}" hx-target="#settings-modal-content" hx-swap="innerHTML" hx-encoding="multipart/form-data" class="settings-form-grid">
+      {% csrf_token %}
+      <p class="muted settings-help-text">Upload a Fight Club XML file, or enable server-wide XML below.</p>
+      <div class="settings-field">
+        {{ compendium_upload_form.system.label_tag }}
+        {{ compendium_upload_form.system }}
+      </div>
+      <label class="settings-checkbox-row">
+        {{ compendium_upload_form.use_server_xml }}
+        <span>{{ compendium_upload_form.use_server_xml.label }}</span>
+      </label>
+      {% if has_server_compendium_xml_path %}
+        <p class="muted settings-help-text">Server path: <code>{{ server_compendium_xml_path }}</code></p>
+      {% else %}
+        <p class="warning">Server-wide XML is unavailable. Set <code>SERVER_COMPENDIUM_XML_PATH</code>.</p>
+      {% endif %}
+      <div class="settings-field">
+        {{ compendium_upload_form.xml_file.label_tag }}
+        {{ compendium_upload_form.xml_file }}
+      </div>
+      {% if compendium_upload_form.errors %}
+        <p class="warning">Please fix import form errors and try again.</p>
+      {% endif %}
+      <div class="settings-action-row">
+        <button class="button" type="submit">Import XML</button>
+      </div>
+    </form>
+
+    <form method="post" action="{% url 'core:remove_user_imported_xml' %}" hx-post="{% url 'core:remove_user_imported_xml' %}" hx-target="#settings-modal-content" hx-swap="innerHTML" class="settings-form-grid">
+      {% csrf_token %}
+      <p class="muted settings-help-text">Remove imported XML objects linked to your account.</p>
+      <div class="settings-action-row">
+        <button class="button ghost" type="submit">Remove My Imported XML</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="settings-card settings-card-compact">
+    <form method="post" action="{% url 'logout' %}">
+      {% csrf_token %}
+      <button class="button ghost" type="submit">Logout</button>
+    </form>
+  </section>
+</section>

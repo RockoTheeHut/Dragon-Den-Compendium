@@ -25,6 +25,8 @@ Create a `.env` file (or set env vars in shell) with:
 - `SECRET_KEY`
 - `OPENAI_API_KEY`
 - `OPENAI_DEFAULT_MODEL`
+- `SERVER_COMPENDIUM_XML_PATH` (optional; absolute path in container/host)
+- `SERVER_COMPENDIUM_SYSTEM` (optional; defaults to `dnd5e`)
 
 Example values are in `.env.example`.
 
@@ -61,6 +63,13 @@ Import behavior:
 - Matches by external id when present.
 - Falls back to deterministic generated external id.
 - Secondary match by `(system, object_type, name)` preserves stable external ids.
+
+### In-App Import (Per User)
+
+- Open top-right `Settings`.
+- `Import Your XML`: upload a Fight Club `.xml` file and import into the shared compendium.
+- `Use server-wide XML`: toggle this option to import from `SERVER_COMPENDIUM_XML_PATH` for Docker/server-wide workflows.
+- `Remove My Imported XML`: removes imported objects linked to your account.
 
 ## Tests
 

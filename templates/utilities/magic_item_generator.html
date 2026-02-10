@@ -1,7 +1,7 @@
 <section class="panel narrow">
   <h1>Magic Item Generator</h1>
   {% if not openai_ready %}
-    <p class="warning">OpenAI is not configured. Set <code>OPENAI_API_KEY</code> and <code>OPENAI_DEFAULT_MODEL</code>.</p>
+    <p class="warning">OpenAI is not configured for your account. Add your key in <strong>Settings</strong> or set server env vars <code>OPENAI_API_KEY</code> and <code>OPENAI_DEFAULT_MODEL</code>.</p>
   {% endif %}
 
   <form method="post">

@@ -24,6 +24,7 @@
       "tracker-monster-modal-content",
       "compendium-preview-modal-content",
       "notes-modal-content",
+      "settings-modal-content",
       "dice-roll-result",
       "random-item-result",
       "random-item-history-region",
@@ -373,6 +374,16 @@
     });
   }
 
+  function reloadCompendiumFromTrigger() {
+    if (!window.htmx) return;
+    const onCompendiumPage = (window.location.pathname || "").startsWith("/compendium/");
+    const targetUrl = onCompendiumPage ? (window.location.pathname + window.location.search) : "/compendium/";
+    window.htmx.ajax("GET", targetUrl, "#main-content");
+    if (!onCompendiumPage) {
+      window.history.pushState({}, "", targetUrl);
+    }
+  }
+
   function scrollToTopForCompendiumDetailSwap(event) {
     if (!event || !event.target || event.target.id !== "main-content") return;
     const path = window.location.pathname || "";
@@ -404,6 +415,10 @@
     wireTrackerEntryTypeForms();
     wireFilterSelectInputs();
     wireRulesSectionControls();
+  });
+
+  document.body.addEventListener("compendiumReloadRequested", function () {
+    reloadCompendiumFromTrigger();
   });
 
   window.openTrackerModal = openTrackerModal;

@@ -1417,12 +1417,132 @@ tbody tr:hover {
 
 #notes-modal-content,
 #dice-modal-content,
-#random-item-modal-content {
+#random-item-modal-content,
+#settings-modal-content {
   display: grid;
   gap: 10px;
   flex: 1 1 auto;
   overflow: auto;
   align-content: start;
+}
+
+.settings-modal-content {
+  display: grid;
+  gap: 10px;
+}
+
+.settings-modal-content input[type="password"] {
+  width: 100%;
+}
+
+.settings-intro {
+  margin: 2px 0 4px;
+}
+
+.settings-status {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: rgba(35, 49, 74, 0.6);
+  color: var(--text-dim);
+}
+
+.settings-card {
+  border: 1px solid rgba(103, 124, 164, 0.28);
+  border-radius: var(--radius);
+  background: rgba(22, 30, 46, 0.8);
+  padding: 10px;
+  display: grid;
+  gap: 10px;
+}
+
+.settings-card-compact {
+  padding: 8px 10px;
+}
+
+.settings-card-title {
+  margin: 0;
+  font-size: 15px;
+  color: var(--text-dim);
+}
+
+.settings-form-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.settings-action-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.settings-field {
+  display: grid;
+  gap: 6px;
+}
+
+.settings-field label {
+  font-weight: 600;
+}
+
+.settings-checkbox-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-dim);
+}
+
+.settings-help-text {
+  margin: 0;
+}
+
+.settings-divider {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 2px 0;
+}
+
+.xml-import-loading-card {
+  width: min(360px, 90vw);
+  min-height: 160px;
+  align-content: center;
+  gap: 10px;
+}
+
+.xml-import-loading-card h3 {
+  margin: 0;
+}
+
+.xml-import-loading-card p {
+  margin: 0;
+}
+
+.xml-import-loading-track {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(83, 107, 146, 0.35);
+  overflow: hidden;
+  border: 1px solid rgba(106, 128, 167, 0.45);
+}
+
+.xml-import-loading-bar {
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(90deg, #1faea0, #68d4c9);
+  border-radius: 999px;
+  animation: xml-import-loading-slide 1s ease-in-out infinite;
+}
+
+@keyframes xml-import-loading-slide {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(260%);
+  }
 }
 
 #notes-modal-content #scratchpad-content {

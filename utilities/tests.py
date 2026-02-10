@@ -1,10 +1,11 @@
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from compendium.models import GameObject
+from core.models import UserSettings
 
 
 class DiceToolTests(TestCase):
@@ -202,3 +203,27 @@ class RandomItemPickerTests(TestCase):
         self.assertContains(response, "Charm of Ember")
         history_html = response.content.decode().split('<div id="random-item-history-region"', 1)[1]
         self.assertNotIn("Mask of Echoes", history_html)
+
+
+class MagicItemSettingsTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="mage", password="pw12345!")
+        self.client.force_login(self.user)
+
+    @override_settings(OPENAI_API_KEY="", OPENAI_DEFAULT_MODEL="gpt-5-mini")
+    def test_magic_item_generator_ready_with_user_api_key(self):
+        UserSettings.objects.create(user=self.user, openai_api_key="sk-user-key")
+
+        response = self.client.get(reverse("utilities:magic_item"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "OpenAI is not configured for your account")
+        self.assertNotContains(response, '<button class="button" type="submit" disabled>Generate</button>', html=False)
+
+    @override_settings(OPENAI_API_KEY="", OPENAI_DEFAULT_MODEL="gpt-5-mini")
+    def test_magic_item_generator_not_ready_without_any_api_key(self):
+        response = self.client.get(reverse("utilities:magic_item"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "OpenAI is not configured for your account")
+        self.assertContains(response, '<button class="button" type="submit" disabled>Generate</button>', html=False)

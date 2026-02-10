@@ -11,6 +11,7 @@ from openai import OpenAI
 
 from compendium.models import GameObject, Tag
 from core.rendering import render_page
+from core.models import get_effective_openai_api_key
 from games.models import GameObjectInstance
 
 from .forms import ALLOWED_DICE_SIDES, DiceToolForm, MagicItemGeneratorForm, MagicItemSaveGameForm, MagicItemSaveGlobalForm
@@ -41,8 +42,12 @@ def _resolve_random_item_history(history_ids):
     return [items_by_id[item_id] for item_id in history_ids if item_id in items_by_id]
 
 
-def _is_openai_ready():
-    return bool(settings.OPENAI_API_KEY and settings.OPENAI_DEFAULT_MODEL)
+def _resolve_openai_api_key(user):
+    return get_effective_openai_api_key(user)
+
+
+def _is_openai_ready(user):
+    return bool(_resolve_openai_api_key(user) and settings.OPENAI_DEFAULT_MODEL)
 
 
 def _extract_json(text):
@@ -53,8 +58,8 @@ def _extract_json(text):
     return json.loads(text[start : end + 1])
 
 
-def _generate_magic_item(payload, model):
-    client = OpenAI(api_key=settings.OPENAI_API_KEY)
+def _generate_magic_item(payload, model, api_key):
+    client = OpenAI(api_key=api_key)
     instructions = (
         "You create tabletop RPG magic items. "
         "Return strict JSON with keys: name (string), description (string), "
@@ -124,11 +129,18 @@ def magic_item_generator(request):
     if request.method == "POST":
         form = MagicItemGeneratorForm(request.POST)
         if form.is_valid():
-            if not _is_openai_ready():
-                messages.error(request, "OpenAI is not configured. Set OPENAI_API_KEY and OPENAI_DEFAULT_MODEL.")
+            if not _is_openai_ready(request.user):
+                messages.error(
+                    request,
+                    "OpenAI is not configured for your account. Save a key in Settings or set OPENAI_API_KEY and OPENAI_DEFAULT_MODEL.",
+                )
             else:
                 try:
-                    generated = _generate_magic_item(form.cleaned_data, form.cleaned_data["model"])
+                    generated = _generate_magic_item(
+                        form.cleaned_data,
+                        form.cleaned_data["model"],
+                        _resolve_openai_api_key(request.user),
+                    )
                     generated_json = json.dumps(generated)
                 except Exception as exc:  # noqa: BLE001
                     messages.error(request, f"Generation failed: {exc}")
@@ -147,7 +159,7 @@ def magic_item_generator(request):
             "generated": generated,
             "save_global_form": save_global_form,
             "save_game_form": save_game_form,
-            "openai_ready": _is_openai_ready(),
+            "openai_ready": _is_openai_ready(request.user),
             "generated_json": generated_json,
         },
     )

@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Dragon Den Compendium</title>
-  <link rel="stylesheet" href="{% static 'styles.css' %}?v=phase2-polish-19">
+  <link rel="stylesheet" href="{% static 'styles.css' %}?v=phase2-polish-23">
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.3/Sortable.min.js"></script>
 </head>
@@ -55,9 +55,9 @@
             <button class="button" type="button" onclick="openDiceModal()">Roll Dice</button>
             <button class="button" type="button" onclick="openRandomItemModal()">Random Item</button>
             <button class="button" type="button" onclick="openNotesModal()">Scratchpad</button>
-            <form method="post" action="{% url 'logout' %}">
+            <form method="post" onsubmit="event.preventDefault(); openSettingsModal();">
               {% csrf_token %}
-              <button class="button ghost" type="submit">Logout</button>
+              <button class="button ghost" type="submit">Settings</button>
             </form>
           </div>
         {% else %}
@@ -110,11 +110,31 @@
     </div>
   </div>
 
+  <div id="settings-modal" class="modal hidden" onclick="if(event.target === this) closeSettingsModal()">
+    <div class="modal-content modal-tool modal-small">
+      <div class="modal-header">
+        <h2>Settings</h2>
+        <button class="button ghost" type="button" onclick="closeSettingsModal()">Close</button>
+      </div>
+      <div id="settings-modal-content"></div>
+    </div>
+  </div>
+
+  <div id="xml-import-loading-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-content modal-small xml-import-loading-card">
+      <h3>Importing XML</h3>
+      <p class="muted">Please wait while your compendium data is imported.</p>
+      <div class="xml-import-loading-track">
+        <div class="xml-import-loading-bar"></div>
+      </div>
+    </div>
+  </div>
+
   {% if user.is_authenticated %}
     {% include "compendium/partials/object_preview_modal_shell.html" %}
   {% endif %}
 
-  <script src="{% static 'app.js' %}?v=phase2-polish-19"></script>
+  <script src="{% static 'app.js' %}?v=phase2-polish-23"></script>
   <script>
     function prefersReducedMotion() {
       return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
@@ -361,6 +381,31 @@
       closeAppModal(modal, hideRandomItemPicking);
     }
 
+    function openSettingsModal() {
+      const modal = document.getElementById("settings-modal");
+      if (!modal) return;
+      openAppModal(modal);
+      htmx.ajax("GET", "{% url 'core:settings_modal' %}", "#settings-modal-content");
+    }
+
+    function closeSettingsModal() {
+      const modal = document.getElementById("settings-modal");
+      if (!modal) return;
+      closeAppModal(modal);
+    }
+
+    function showXmlImportLoading() {
+      const modal = document.getElementById("xml-import-loading-modal");
+      if (!modal) return;
+      openAppModal(modal);
+    }
+
+    function hideXmlImportLoading() {
+      const modal = document.getElementById("xml-import-loading-modal");
+      if (!modal) return;
+      closeAppModal(modal);
+    }
+
     document.body.addEventListener("htmx:afterSwap", function (event) {
       if (event.target && event.target.id === "notes-modal-content") {
         markScratchpadLoaded();
@@ -384,6 +429,24 @@
         setTimeout(function () {
           event.target.classList.remove("random-item-result-pop");
         }, 350);
+      }
+    });
+
+    document.body.addEventListener("htmx:beforeRequest", function (event) {
+      const requestElement = event && event.detail ? event.detail.elt : null;
+      if (!requestElement) return;
+      const importForm = requestElement.closest ? requestElement.closest("#settings-import-xml-form") : null;
+      if (importForm) {
+        showXmlImportLoading();
+      }
+    });
+
+    document.body.addEventListener("htmx:afterRequest", function (event) {
+      const requestElement = event && event.detail ? event.detail.elt : null;
+      if (!requestElement) return;
+      const importForm = requestElement.closest ? requestElement.closest("#settings-import-xml-form") : null;
+      if (importForm) {
+        hideXmlImportLoading();
       }
     });
 

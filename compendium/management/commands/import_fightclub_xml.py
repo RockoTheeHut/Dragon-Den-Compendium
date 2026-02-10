@@ -106,6 +106,84 @@ def extract_description(element):
     return ""
 
 
+def import_fightclub_xml_path(file_path, system):
+    if not isinstance(file_path, Path):
+        file_path = Path(file_path)
+    system = (system or "").strip()
+
+    if not file_path.exists() or not file_path.is_file():
+        raise CommandError(f"File not found: {file_path}")
+    if not system:
+        raise CommandError("--system is required")
+
+    try:
+        root = ET.parse(file_path).getroot()
+    except ET.ParseError as exc:
+        raise CommandError(f"Invalid XML: {exc}") from exc
+
+    created_count = 0
+    updated_count = 0
+    skipped_count = 0
+    touched_object_ids = []
+
+    for xml_tag, object_type in OBJECT_TYPE_MAP.items():
+        for element in root.findall(f".//{xml_tag}"):
+            name = extract_name(element)
+            description = extract_description(element)
+            payload = element_to_dict(element)
+
+            external_id = extract_external_id(element)
+            if not external_id:
+                external_id = deterministic_external_id(system, object_type, name, payload)
+
+            match = GameObject.objects.filter(
+                system=system,
+                object_type=object_type,
+                external_id=external_id,
+            ).first()
+
+            if match is None:
+                match = GameObject.objects.filter(
+                    system=system,
+                    object_type=object_type,
+                    name=name,
+                ).first()
+                if match is not None and match.external_id:
+                    external_id = match.external_id
+
+            defaults = {
+                "name": name,
+                "description": description,
+                "data": payload,
+                "source": GameObject.SourceType.IMPORTED,
+                "external_id": external_id,
+            }
+
+            if match is None:
+                created = GameObject.objects.create(system=system, object_type=object_type, **defaults)
+                created_count += 1
+                touched_object_ids.append(created.pk)
+            else:
+                changed = False
+                for field, value in defaults.items():
+                    if getattr(match, field) != value:
+                        setattr(match, field, value)
+                        changed = True
+                if changed:
+                    match.save()
+                    updated_count += 1
+                else:
+                    skipped_count += 1
+                touched_object_ids.append(match.pk)
+
+    return {
+        "created": created_count,
+        "updated": updated_count,
+        "unchanged": skipped_count,
+        "touched_object_ids": touched_object_ids,
+    }
+
+
 class Command(BaseCommand):
     help = "Import Fight Club XML content into GameObject rows."
 
@@ -116,71 +194,10 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         file_path = Path(options["file"])
         system = options["system"].strip()
-
-        if not file_path.exists() or not file_path.is_file():
-            raise CommandError(f"File not found: {file_path}")
-        if not system:
-            raise CommandError("--system is required")
-
-        try:
-            root = ET.parse(file_path).getroot()
-        except ET.ParseError as exc:
-            raise CommandError(f"Invalid XML: {exc}") from exc
-
-        created_count = 0
-        updated_count = 0
-        skipped_count = 0
-
-        for xml_tag, object_type in OBJECT_TYPE_MAP.items():
-            for element in root.findall(f".//{xml_tag}"):
-                name = extract_name(element)
-                description = extract_description(element)
-                payload = element_to_dict(element)
-
-                external_id = extract_external_id(element)
-                if not external_id:
-                    external_id = deterministic_external_id(system, object_type, name, payload)
-
-                match = GameObject.objects.filter(
-                    system=system,
-                    object_type=object_type,
-                    external_id=external_id,
-                ).first()
-
-                if match is None:
-                    match = GameObject.objects.filter(
-                        system=system,
-                        object_type=object_type,
-                        name=name,
-                    ).first()
-                    if match is not None and match.external_id:
-                        external_id = match.external_id
-
-                defaults = {
-                    "name": name,
-                    "description": description,
-                    "data": payload,
-                    "source": GameObject.SourceType.IMPORTED,
-                    "external_id": external_id,
-                }
-
-                if match is None:
-                    GameObject.objects.create(system=system, object_type=object_type, **defaults)
-                    created_count += 1
-                else:
-                    changed = False
-                    for field, value in defaults.items():
-                        if getattr(match, field) != value:
-                            setattr(match, field, value)
-                            changed = True
-                    if changed:
-                        match.save()
-                        updated_count += 1
-                    else:
-                        skipped_count += 1
+        result = import_fightclub_xml_path(file_path=file_path, system=system)
 
         self.stdout.write(
             self.style.SUCCESS(
-                f"Import complete. Created={created_count}, Updated={updated_count}, Unchanged={skipped_count}"
+                f"Import complete. Created={result['created']}, Updated={result['updated']}, Unchanged={result['unchanged']}"
             )
         )
