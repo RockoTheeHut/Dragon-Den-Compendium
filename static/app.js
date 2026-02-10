@@ -2,6 +2,7 @@
   const SWAP_ANIMATION_CLASS = "swap-region-pop";
 
   function bindInteractiveWidgets() {
+    syncPageContextClasses();
     wireButtons();
     wireTurnSorting();
     wireGlobalSearch();
@@ -9,6 +10,11 @@
     wireTrackerEntryTypeForms();
     wireFilterSelectInputs();
     wireRulesSectionControls();
+  }
+
+  function syncPageContextClasses() {
+    const path = window.location.pathname || "";
+    document.body.classList.toggle("is-compendium-page", path.startsWith("/compendium/"));
   }
 
   function openModalAndLoad(modalId, contentSelector, url) {
@@ -411,6 +417,7 @@
   });
 
   document.body.addEventListener("htmx:afterSwap", function (event) {
+    syncPageContextClasses();
     if (event && isAnimatableSwapTarget(event.target)) {
       animateSwapTarget(event.target);
     }
