@@ -18,7 +18,16 @@
           <label data-non-player-only="1">HP Max {{ manual_form.hp_max }}</label>
           <label data-non-player-only="1">Items {{ manual_form.items_text }}</label>
           <label class="tracker-form-span">Notes {{ manual_form.notes }}</label>
-          <label>Status Effect Name <input type="text" name="status_effect_name" placeholder="Optional"></label>
+          <label class="tracker-form-span">
+            Condition
+            <select name="status_effect_condition_id">
+              <option value="">Choose condition (optional)</option>
+              {% for condition in condition_options %}
+                <option value="{{ condition.id }}">{{ condition.name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>Status Effect Name <input type="text" name="status_effect_name" placeholder="Optional override"></label>
           <label>Status Rounds <input type="number" min="1" name="status_effect_rounds" value="1"></label>
         </div>
         <div class="tracker-modal-actions">
@@ -28,11 +37,19 @@
     </section>
 
     <section id="tracker-tab-compendium" class="tracker-tab-panel hidden">
-      <form method="post" action="{% url 'tracker:add_from_compendium' %}" hx-post="{% url 'tracker:add_from_compendium' %}" hx-target="#tracker-list-region" hx-swap="outerHTML" hx-on::after-request="if(event.detail.successful){ closeTrackerModal('tracker-add-modal'); }" class="tracker-entry-form">
+      <form method="post" action="{% url 'tracker:add_from_compendium' %}" hx-post="{% url 'tracker:add_from_compendium' %}" hx-target="#tracker-list-region" hx-swap="outerHTML" hx-on::after-request="if(event.detail.successful){ closeTrackerModal('tracker-add-modal'); }" class="tracker-entry-form" data-compendium-hp-autofill="1">
         {% csrf_token %}
         <div class="tracker-form-grid">
           <label class="tracker-form-span">Search Monster <input type="search" class="tracker-search-input" placeholder="Type to filter monsters..." data-filter-select="{{ from_compendium_form.source.id_for_label }}"></label>
-          <label class="tracker-form-span">Monster {{ from_compendium_form.source }}</label>
+          <label class="tracker-form-span">
+            Monster
+            <select name="{{ from_compendium_form.source.html_name }}" id="{{ from_compendium_form.source.id_for_label }}" required>
+              <option value="">---------</option>
+              {% for monster in compendium_monster_options %}
+                <option value="{{ monster.id }}" data-hp-current="{{ monster.hp_current }}" data-hp-max="{{ monster.hp_max }}">{{ monster.name }}</option>
+              {% endfor %}
+            </select>
+          </label>
           <label>Entry Type {{ from_compendium_form.entry_type }}</label>
           <label>Name Override {{ from_compendium_form.name }}</label>
           <label>Initiative {{ from_compendium_form.initiative }}</label>
@@ -41,7 +58,16 @@
           <label>HP Max {{ from_compendium_form.hp_max }}</label>
           <label>Items {{ from_compendium_form.items_text }}</label>
           <label class="tracker-form-span">Notes {{ from_compendium_form.notes }}</label>
-          <label>Status Effect Name <input type="text" name="status_effect_name" placeholder="Optional"></label>
+          <label class="tracker-form-span">
+            Condition
+            <select name="status_effect_condition_id">
+              <option value="">Choose condition (optional)</option>
+              {% for condition in condition_options %}
+                <option value="{{ condition.id }}">{{ condition.name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>Status Effect Name <input type="text" name="status_effect_name" placeholder="Optional override"></label>
           <label>Status Rounds <input type="number" min="1" name="status_effect_rounds" value="1"></label>
         </div>
         <div class="tracker-modal-actions">
@@ -59,7 +85,16 @@
           <label>Initiative {{ from_player_form.initiative }}</label>
           <label class="tracker-inline-check">Active {{ from_player_form.is_active }}</label>
           <label class="tracker-form-span">Notes {{ from_player_form.notes }}</label>
-          <label>Status Effects <input type="text" name="status_effect_name" placeholder="Optional"></label>
+          <label class="tracker-form-span">
+            Condition
+            <select name="status_effect_condition_id">
+              <option value="">Choose condition (optional)</option>
+              {% for condition in condition_options %}
+                <option value="{{ condition.id }}">{{ condition.name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>Status Effects <input type="text" name="status_effect_name" placeholder="Optional override"></label>
           <label>Status Rounds <input type="number" min="1" name="status_effect_rounds" value="1"></label>
         </div>
         <div class="tracker-modal-actions">

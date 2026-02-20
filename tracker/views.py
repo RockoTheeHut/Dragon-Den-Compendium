@@ -168,14 +168,31 @@ def _list_context(request):
 def _add_forms_context(request):
     encounter = _get_active_encounter(request)
     encounter_game = encounter.game if encounter else None
+    from_compendium_form = AddFromCompendiumForm(initial={"entry_type": TurnTrackerEntry.EntryType.ENEMY, "is_active": True})
+    compendium_monster_options = []
+    for monster in from_compendium_form.fields["source"].queryset.only("id", "name", "data"):
+        hp_current_default, hp_max_default = _extract_hp(monster.data)
+        compendium_monster_options.append(
+            {
+                "id": monster.id,
+                "name": monster.name,
+                "hp_current": "" if hp_current_default is None else hp_current_default,
+                "hp_max": "" if hp_max_default is None else hp_max_default,
+            }
+        )
+    condition_options = list(
+        GameObject.objects.filter(object_type=GameObject.ObjectType.CONDITION).only("id", "name").order_by("name")
+    )
     return {
         "manual_form": TurnTrackerEntryForm(initial={"entry_type": TurnTrackerEntry.EntryType.PLAYER, "is_active": True}),
-        "from_compendium_form": AddFromCompendiumForm(initial={"entry_type": TurnTrackerEntry.EntryType.ENEMY, "is_active": True}),
+        "from_compendium_form": from_compendium_form,
+        "compendium_monster_options": compendium_monster_options,
         "from_player_form": AddFromGamePlayerForm(
             user=request.user,
             game=encounter_game,
             initial={"is_active": True},
         ),
+        "condition_options": condition_options,
     }
 
 
@@ -205,7 +222,25 @@ def _normalize_sort_order(user, encounter=None):
 
 def _create_status_effect_from_post(entry, post_data):
     """Create an optional status effect from add-entry form fields."""
-    name = (post_data.get("status_effect_name") or post_data.get("name") or "").strip()
+    raw_condition_id = (post_data.get("status_effect_condition_id") or "").strip()
+    selected_condition_name = ""
+    if raw_condition_id.isdigit():
+        selected_condition = (
+            GameObject.objects.filter(
+                pk=int(raw_condition_id),
+                object_type=GameObject.ObjectType.CONDITION,
+            )
+            .only("name")
+            .first()
+        )
+        if selected_condition is not None:
+            selected_condition_name = selected_condition.name
+
+    name = (
+        (post_data.get("status_effect_name") or "").strip()
+        or selected_condition_name.strip()
+        or (post_data.get("name") or "").strip()
+    )
     if not name:
         return
 
@@ -515,7 +550,32 @@ def entry_status_modal(request, entry_id):
         user=request.user,
         encounter=_get_active_encounter(request),
     )
-    return render(request, "tracker/partials/status_modal_content.html", {"entry": entry})
+    raw_effect_id = (request.GET.get("effect_id") or "").strip()
+    try:
+        selected_effect_id = int(raw_effect_id)
+    except (TypeError, ValueError):
+        selected_effect_id = None
+
+    condition_options = list(
+        GameObject.objects.filter(object_type=GameObject.ObjectType.CONDITION).only("id", "name").order_by("name")
+    )
+    condition_id_by_name = {condition.name.strip().lower(): condition.id for condition in condition_options}
+    effects = list(entry.status_effects.all())
+    if selected_effect_id is not None:
+        effects.sort(key=lambda effect: (0 if effect.id == selected_effect_id else 1, effect.sort_order, effect.id))
+    for effect in effects:
+        effect.condition_object_id = condition_id_by_name.get((effect.name or "").strip().lower())
+
+    return render(
+        request,
+        "tracker/partials/status_modal_content.html",
+        {
+            "entry": entry,
+            "effects": effects,
+            "condition_options": condition_options,
+            "selected_effect_id": selected_effect_id,
+        },
+    )
 
 
 @login_required

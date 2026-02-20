@@ -19,7 +19,7 @@
       }
     })();
   </script>
-  <link rel="stylesheet" href="{% static 'styles.css' %}?v=phase2-polish-37">
+  <link rel="stylesheet" href="{% static 'styles.css' %}?v=phase2-polish-38">
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.3/Sortable.min.js"></script>
 </head>
@@ -151,7 +151,7 @@
     {% include "compendium/partials/object_preview_modal_shell.html" %}
   {% endif %}
 
-  <script src="{% static 'app.js' %}?v=phase2-polish-37"></script>
+  <script src="{% static 'app.js' %}?v=phase2-polish-38"></script>
   <script>
     function getStoredThemeMode() {
       try {
@@ -477,6 +477,11 @@
       closeAppModal(modal);
     }
 
+    function isXmlImportRequestElement(requestElement) {
+      if (!requestElement || !requestElement.closest) return false;
+      return !!requestElement.closest("#settings-import-xml-form");
+    }
+
     document.body.addEventListener("htmx:afterSwap", function (event) {
       if (event.target && event.target.id === "notes-modal-content") {
         markScratchpadLoaded();
@@ -500,18 +505,34 @@
 
     document.body.addEventListener("htmx:beforeRequest", function (event) {
       const requestElement = event && event.detail ? event.detail.elt : null;
-      if (!requestElement) return;
-      const importForm = requestElement.closest ? requestElement.closest("#settings-import-xml-form") : null;
-      if (importForm) {
+      if (isXmlImportRequestElement(requestElement)) {
         showXmlImportLoading();
       }
     });
 
     document.body.addEventListener("htmx:afterRequest", function (event) {
       const requestElement = event && event.detail ? event.detail.elt : null;
-      if (!requestElement) return;
-      const importForm = requestElement.closest ? requestElement.closest("#settings-import-xml-form") : null;
-      if (importForm) {
+      if (isXmlImportRequestElement(requestElement)) {
+        hideXmlImportLoading();
+      }
+    });
+
+    document.body.addEventListener("htmx:responseError", function (event) {
+      const requestElement = event && event.detail ? event.detail.elt : null;
+      if (isXmlImportRequestElement(requestElement)) {
+        hideXmlImportLoading();
+      }
+    });
+
+    document.body.addEventListener("htmx:sendError", function (event) {
+      const requestElement = event && event.detail ? event.detail.elt : null;
+      if (isXmlImportRequestElement(requestElement)) {
+        hideXmlImportLoading();
+      }
+    });
+
+    document.body.addEventListener("htmx:afterSwap", function (event) {
+      if (event && event.target && event.target.id === "settings-modal-content") {
         hideXmlImportLoading();
       }
     });

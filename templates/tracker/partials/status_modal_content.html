@@ -1,10 +1,13 @@
 <div class="tracker-modal-content">
   <h3>{{ entry.name }}</h3>
   <div class="tracker-status-stack">
-    {% for effect in entry.status_effects.all %}
-      <div class="tracker-status-row">
+    {% for effect in effects %}
+      <div class="tracker-status-row {% if selected_effect_id and effect.id == selected_effect_id %}is-selected{% endif %}">
         <span class="tracker-effect-chip {% if not effect.is_running %}is-paused{% endif %}">{{ effect.name }} • {{ effect.remaining_rounds }}/{{ effect.duration_rounds }}</span>
         <div class="tracker-actions">
+          {% if effect.condition_object_id %}
+            <button class="button small ghost" type="button" onclick="openCompendiumPreviewModal({{ effect.condition_object_id }})">Rules</button>
+          {% endif %}
           <form method="post" action="{% url 'tracker:play_status_effect' effect.id %}" hx-post="{% url 'tracker:play_status_effect' effect.id %}" hx-target="#tracker-list-region" hx-swap="outerHTML" hx-on::after-request="if(event.detail.successful){ closeTrackerModal('tracker-status-modal'); }">
             {% csrf_token %}
             <button class="button small ghost" type="submit">Play</button>
@@ -30,7 +33,13 @@
 
   <form method="post" action="{% url 'tracker:add_status_effect' entry.id %}" hx-post="{% url 'tracker:add_status_effect' entry.id %}" hx-target="#tracker-list-region" hx-swap="outerHTML" hx-on::after-request="if(event.detail.successful){ closeTrackerModal('tracker-status-modal'); }" class="tracker-inline-form">
     {% csrf_token %}
-    <input type="text" name="status_effect_name" placeholder="Effect name" required>
+    <select name="status_effect_condition_id">
+      <option value="">Choose condition (optional)</option>
+      {% for condition in condition_options %}
+        <option value="{{ condition.id }}">{{ condition.name }}</option>
+      {% endfor %}
+    </select>
+    <input type="text" name="status_effect_name" placeholder="Effect name override (optional)">
     <input type="number" name="status_effect_rounds" min="1" value="1" required>
     <button class="button" type="submit">Add Effect</button>
   </form>

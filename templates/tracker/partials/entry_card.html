@@ -38,7 +38,7 @@
   </div>
   <div class="tracker-chip-row">
     {% for effect in entry.status_effects.all %}
-      <button class="tracker-effect-chip {% if not effect.is_running %}is-paused{% endif %}" type="button" onclick="openTrackerStatusModal({{ entry.id }})">
+      <button class="tracker-effect-chip {% if not effect.is_running %}is-paused{% endif %}" type="button" onclick="openTrackerStatusModal({{ entry.id }}, {{ effect.id }})">
         {{ effect.name }} • {{ effect.remaining_rounds }}
       </button>
     {% empty %}

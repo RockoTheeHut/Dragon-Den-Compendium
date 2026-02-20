@@ -182,6 +182,141 @@ class TurnTrackerTests(TestCase):
         self.assertEqual(running.remaining_rounds, 2)
         self.assertEqual(paused.remaining_rounds, 4)
 
+    def test_add_status_effect_uses_selected_condition_name(self):
+        condition = GameObject.objects.create(
+            system="dnd5e",
+            object_type=GameObject.ObjectType.CONDITION,
+            name="Stunned",
+            source=GameObject.SourceType.OFFICIAL,
+            data={"impact": "A stunned creature is incapacitated."},
+        )
+        entry = TurnTrackerEntry.objects.create(
+            user=self.user,
+            name="Bandit",
+            entry_type=TurnTrackerEntry.EntryType.ENEMY,
+            sort_order=0,
+        )
+
+        response = self.client.post(
+            reverse("tracker:add_status_effect", args=[entry.id]),
+            data={
+                "status_effect_condition_id": str(condition.pk),
+                "status_effect_name": "",
+                "status_effect_rounds": "2",
+            },
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        effect = StatusEffect.objects.get(entry=entry)
+        self.assertEqual(effect.name, "Stunned")
+        self.assertEqual(effect.duration_rounds, 2)
+        self.assertEqual(effect.remaining_rounds, 2)
+
+    def test_status_modal_includes_condition_picker_and_rules_button(self):
+        condition = GameObject.objects.create(
+            system="dnd5e",
+            object_type=GameObject.ObjectType.CONDITION,
+            name="Poisoned",
+            source=GameObject.SourceType.OFFICIAL,
+            data={"impact": "A poisoned creature has disadvantage on attack rolls and ability checks."},
+        )
+        entry = TurnTrackerEntry.objects.create(
+            user=self.user,
+            name="Cultist",
+            entry_type=TurnTrackerEntry.EntryType.ENEMY,
+            sort_order=0,
+        )
+        StatusEffect.objects.create(
+            entry=entry,
+            name="Poisoned",
+            duration_rounds=3,
+            remaining_rounds=2,
+            is_running=True,
+        )
+
+        response = self.client.get(
+            reverse("tracker:entry_status_modal", args=[entry.id]),
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'name="status_effect_condition_id"', html=False)
+        self.assertContains(response, "Choose condition (optional)")
+        self.assertContains(response, "Poisoned")
+        self.assertContains(response, f"openCompendiumPreviewModal({condition.pk})")
+
+    def test_add_entry_modal_compendium_options_include_hp_defaults(self):
+        monster = GameObject.objects.create(
+            system="dnd5e",
+            object_type=GameObject.ObjectType.MONSTER,
+            name="Ogre",
+            source=GameObject.SourceType.CUSTOM,
+            data={"hp": "59 (7d10+21)"},
+        )
+
+        response = self.client.get(reverse("tracker:add_entry_modal"), HTTP_HX_REQUEST="true")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'data-compendium-hp-autofill="1"', html=False)
+        self.assertContains(response, f'value="{monster.pk}"', html=False)
+        self.assertContains(response, 'data-hp-max="59"', html=False)
+        self.assertContains(response, 'data-hp-current="59"', html=False)
+
+    def test_enemy_status_effect_chip_opens_status_modal_with_effect_id(self):
+        entry = TurnTrackerEntry.objects.create(
+            user=self.user,
+            name="Raider",
+            entry_type=TurnTrackerEntry.EntryType.ENEMY,
+            sort_order=0,
+        )
+        effect = StatusEffect.objects.create(
+            entry=entry,
+            name="Poisoned",
+            duration_rounds=3,
+            remaining_rounds=2,
+            is_running=True,
+        )
+
+        response = self.client.get(reverse("tracker:dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, f"openTrackerStatusModal({entry.id}, {effect.id})")
+
+    def test_status_modal_highlights_selected_effect(self):
+        entry = TurnTrackerEntry.objects.create(
+            user=self.user,
+            name="Wight",
+            entry_type=TurnTrackerEntry.EntryType.ENEMY,
+            sort_order=0,
+        )
+        first = StatusEffect.objects.create(
+            entry=entry,
+            name="Poisoned",
+            duration_rounds=3,
+            remaining_rounds=2,
+            is_running=True,
+            sort_order=0,
+        )
+        second = StatusEffect.objects.create(
+            entry=entry,
+            name="Stunned",
+            duration_rounds=2,
+            remaining_rounds=1,
+            is_running=True,
+            sort_order=1,
+        )
+
+        response = self.client.get(
+            f"{reverse('tracker:entry_status_modal', args=[entry.id])}?effect_id={second.id}",
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "tracker-status-row is-selected")
+        self.assertContains(response, "Stunned")
+        self.assertContains(response, "Poisoned")
+
     def test_reorder_entries_updates_sort_order(self):
         a = TurnTrackerEntry.objects.create(
             user=self.user,
@@ -323,10 +458,19 @@ class TurnTrackerTests(TestCase):
         self.assertNotContains(response, "Create NPC / Enemy From Compendium Monster")
 
     def test_add_entry_modal_endpoint_returns_form_content(self):
+        GameObject.objects.create(
+            system="dnd5e",
+            object_type=GameObject.ObjectType.CONDITION,
+            name="Frightened",
+            source=GameObject.SourceType.OFFICIAL,
+            data={"impact": "A frightened creature has disadvantage while the source is in sight."},
+        )
         response = self.client.get(reverse("tracker:add_entry_modal"), HTTP_HX_REQUEST="true")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Search Monster")
         self.assertContains(response, "Add From Monster")
+        self.assertContains(response, "Choose condition (optional)")
+        self.assertContains(response, "Frightened")
 
     def test_edit_entry_modal_endpoint_returns_modal_content(self):
         entry = TurnTrackerEntry.objects.create(

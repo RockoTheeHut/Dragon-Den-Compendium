@@ -19,6 +19,7 @@ class GameObject(models.Model):
         RACE = "race", "Race"
         FEAT = "feat", "Feat"
         BACKGROUND = "background", "Background"
+        CONDITION = "condition", "Condition"
         CHARACTER = "character", "Character"
         NPC = "npc", "NPC"
         MISC = "misc", "Misc"

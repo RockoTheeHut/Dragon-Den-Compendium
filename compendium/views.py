@@ -63,6 +63,7 @@ REFERENCE_OBJECT_TYPES = [
     GameObject.ObjectType.SPELL,
     GameObject.ObjectType.ITEM,
     GameObject.ObjectType.MONSTER,
+    GameObject.ObjectType.CONDITION,
     GameObject.ObjectType.CLASS,
     GameObject.ObjectType.RACE,
     GameObject.ObjectType.FEAT,
@@ -81,6 +82,7 @@ OBJECT_TYPE_SORT_ORDER = [
     GameObject.ObjectType.FEAT,
     GameObject.ObjectType.ITEM,
     GameObject.ObjectType.MONSTER,
+    GameObject.ObjectType.CONDITION,
     GameObject.ObjectType.SPELL,
     GameObject.ObjectType.RACE,
     GameObject.ObjectType.BACKGROUND,
@@ -485,6 +487,18 @@ def _build_preview_context(game_object):
         if traits:
             object_sections.append(_build_section("Traits", traits))
             consumed_keys.add("trait")
+    elif object_type == GameObject.ObjectType.CONDITION:
+        summary_pairs = [
+            ("Impact", data.get("impact")),
+            ("Ends When", data.get("ends_when")),
+        ]
+        consumed_keys.update({"impact", "ends_when", "effects", "levels", "source_reference"})
+        effects = _extract_named_entries(data.get("effects"), default_name="Effect")
+        levels = _extract_named_entries(data.get("levels"), default_name="Level")
+        if effects:
+            object_sections.append(_build_section("Effects", effects))
+        if levels:
+            object_sections.append(_build_section("Exhaustion Levels", levels))
     else:
         summary_pairs = [
             ("Type", object_type),
@@ -589,7 +603,8 @@ def _build_related_reference_groups(game_object, preview_context):
             continue
 
         bucket = grouped.get(candidate_object_type)
-        if bucket is None or len(bucket) >= 12:
+        max_items = 24 if candidate_object_type == GameObject.ObjectType.CONDITION else 12
+        if bucket is None or len(bucket) >= max_items:
             continue
         bucket.append({"id": candidate_id, "name": name})
 

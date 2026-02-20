@@ -104,10 +104,16 @@ class FightClubImportTests(TestCase):
         self._write_xml("Sneaky creature")
         call_command("import_fightclub_xml", file=str(self.xml_path), system="dnd5e")
 
-        self.assertEqual(GameObject.objects.count(), 7)
+        self.assertEqual(
+            GameObject.objects.filter(object_type=GameObject.ObjectType.CONDITION, system="dnd5e").count(),
+            15,
+        )
+        self.assertEqual(GameObject.objects.count(), 22)
         goblin = GameObject.objects.get(name="Goblin")
         first_external_id = goblin.external_id
         self.assertTrue(first_external_id)
+        poisoned = GameObject.objects.get(name="Poisoned", object_type=GameObject.ObjectType.CONDITION)
+        self.assertEqual(poisoned.source, GameObject.SourceType.OFFICIAL)
         wizard = GameObject.objects.get(name="Wizard")
         self.assertEqual(wizard.object_type, GameObject.ObjectType.CLASS)
         self.assertEqual(GameObject.objects.get(name="Elf").object_type, GameObject.ObjectType.RACE)
@@ -117,7 +123,7 @@ class FightClubImportTests(TestCase):
         self._write_xml("Updated creature text")
         call_command("import_fightclub_xml", file=str(self.xml_path), system="dnd5e")
 
-        self.assertEqual(GameObject.objects.count(), 7)
+        self.assertEqual(GameObject.objects.count(), 22)
         goblin.refresh_from_db()
         self.assertEqual(goblin.description, "Updated creature text")
         self.assertEqual(goblin.external_id, first_external_id)
@@ -217,6 +223,30 @@ class CompendiumPaginationTests(TestCase):
         self.assertContains(response, "School of Evocation")
         self.assertContains(response, "<details", html=False)
 
+    def test_condition_preview_renders_effect_sections(self):
+        self.client.force_login(self.user)
+        obj = GameObject.objects.create(
+            system="dnd5e",
+            object_type=GameObject.ObjectType.CONDITION,
+            name="Stunned",
+            source=GameObject.SourceType.OFFICIAL,
+            description="A stunned creature is incapacitated and cannot move.",
+            data={
+                "impact": "A stunned creature is incapacitated and cannot move.",
+                "ends_when": "The effect causing stun ends.",
+                "effects": [
+                    "The creature cannot move.",
+                    "It automatically fails Strength and Dexterity saving throws.",
+                ],
+            },
+        )
+
+        response = self.client.get(reverse("compendium:object_preview_modal", args=[obj.pk]), HTTP_HX_REQUEST="true")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Summary")
+        self.assertContains(response, "Effects")
+        self.assertContains(response, "Stunned")
+
     def test_object_detail_links_referenced_entries_to_preview_modal(self):
         self.client.force_login(self.user)
         spell = GameObject.objects.create(
@@ -226,19 +256,29 @@ class CompendiumPaginationTests(TestCase):
             source=GameObject.SourceType.IMPORTED,
             data={"level": "1", "text": ["You create darts of force."]},
         )
+        condition = GameObject.objects.create(
+            system="dnd5e",
+            object_type=GameObject.ObjectType.CONDITION,
+            name="Poisoned",
+            source=GameObject.SourceType.OFFICIAL,
+            description="A poisoned creature has disadvantage on attack rolls and ability checks.",
+            data={"impact": "A poisoned creature has disadvantage on attack rolls and ability checks."},
+        )
         class_obj = GameObject.objects.create(
             system="dnd5e",
             object_type=GameObject.ObjectType.CLASS,
             name="Battle Mage",
             source=GameObject.SourceType.CUSTOM,
-            description="Battle Mages are known for casting Magic Missile in close combat.",
+            description="Battle Mages are known for casting Magic Missile and leaving foes poisoned in close combat.",
             data={"hd": "8"},
         )
 
         response = self.client.get(reverse("compendium:object_detail", args=[class_obj.pk]))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Magic Missile")
+        self.assertContains(response, "poisoned")
         self.assertContains(response, f"openCompendiumPreviewModal({spell.pk})")
+        self.assertContains(response, f"openCompendiumPreviewModal({condition.pk})")
         self.assertContains(response, "compendium-inline-ref")
         self.assertNotContains(response, "Linked Entries")
         self.assertNotContains(response, "Add To Game")

@@ -1691,6 +1691,11 @@ html.theme-light .tracker-tab-button:hover {
   background: rgba(27, 38, 58, 0.8);
 }
 
+.tracker-status-row.is-selected {
+  border-color: #49a79f;
+  box-shadow: 0 0 0 2px rgba(73, 167, 159, 0.2);
+}
+
 .tracker-monster-stat-block p,
 .tracker-monster-meta p {
   margin: 0;
@@ -1905,6 +1910,12 @@ html.theme-light .settings-status {
   overflow: hidden;
 }
 
+.modal-content.modal-tool > :not(.modal-header) {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
 .modal-small {
   width: min(460px, 95vw);
 }
@@ -1929,6 +1940,13 @@ html.theme-light .settings-status {
   align-content: start;
 }
 
+#tracker-add-modal-content {
+  display: block;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
 .settings-modal-shell {
   width: min(1080px, 96vw);
   max-height: 94vh;
@@ -1936,7 +1954,7 @@ html.theme-light .settings-status {
 }
 
 #settings-modal-content {
-  overflow: visible;
+  overflow: auto;
 }
 
 .settings-modal-content {

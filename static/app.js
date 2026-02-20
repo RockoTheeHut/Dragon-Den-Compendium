@@ -7,6 +7,7 @@
     wireTurnSorting();
     wireGlobalSearch();
     wireTrackerTabs();
+    wireTrackerCompendiumHpDefaults();
     wireTrackerEntryTypeForms();
     wireFilterSelectInputs();
     wireRulesSectionControls();
@@ -217,11 +218,13 @@
     openModalAndLoad("tracker-edit-modal", "#tracker-edit-modal-content", "/tracker/entries/" + entryId + "/edit-modal/");
   }
 
-  function openTrackerStatusModal(entryId) {
+  function openTrackerStatusModal(entryId, effectId) {
+    const parsedEffectId = parseInt(effectId, 10);
+    const query = parsedEffectId ? ("?effect_id=" + parsedEffectId) : "";
     openModalAndLoad(
       "tracker-status-modal",
       "#tracker-status-modal-content",
-      "/tracker/entries/" + entryId + "/status/modal/"
+      "/tracker/entries/" + entryId + "/status/modal/" + query
     );
   }
 
@@ -285,6 +288,42 @@
           activate(button.dataset.trackerTabTarget);
         });
       });
+    });
+  }
+
+  function wireTrackerCompendiumHpDefaults() {
+    const forms = document.querySelectorAll("form[data-compendium-hp-autofill='1']");
+    if (!forms.length) return;
+
+    forms.forEach(function (form) {
+      if (form.dataset.hpAutofillBound === "1") return;
+      form.dataset.hpAutofillBound = "1";
+
+      const sourceSelect = form.querySelector("select[name='source']");
+      const hpCurrentInput = form.querySelector("input[name='hp_current']");
+      const hpMaxInput = form.querySelector("input[name='hp_max']");
+      if (!sourceSelect || !hpMaxInput) return;
+
+      function applyDefaults(preserveExistingValues) {
+        const selectedOption = sourceSelect.options[sourceSelect.selectedIndex];
+        if (!selectedOption) return;
+
+        const nextHpCurrent = (selectedOption.dataset.hpCurrent || "").trim();
+        const nextHpMax = (selectedOption.dataset.hpMax || "").trim();
+
+        if (!preserveExistingValues || !hpMaxInput.value.trim()) {
+          hpMaxInput.value = nextHpMax;
+        }
+        if (hpCurrentInput && (!preserveExistingValues || !hpCurrentInput.value.trim())) {
+          hpCurrentInput.value = nextHpCurrent;
+        }
+      }
+
+      sourceSelect.addEventListener("change", function () {
+        applyDefaults(false);
+      });
+
+      applyDefaults(true);
     });
   }
 
