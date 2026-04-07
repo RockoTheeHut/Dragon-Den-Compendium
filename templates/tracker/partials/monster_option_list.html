@@ -1,0 +1,14 @@
+<option value="">
+  {% if monster_query %}
+    {% if compendium_monster_options %}
+      Select a monster
+    {% else %}
+      No matching monsters
+    {% endif %}
+  {% else %}
+    Search to load monsters
+  {% endif %}
+</option>
+{% for monster in compendium_monster_options %}
+  <option value="{{ monster.id }}" data-hp-current="{{ monster.hp_current }}" data-hp-max="{{ monster.hp_max }}">{{ monster.name }}</option>
+{% endfor %}

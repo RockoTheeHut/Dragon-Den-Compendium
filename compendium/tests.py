@@ -344,3 +344,90 @@ class CompendiumSearchPreviewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "search-preview-open")
         self.assertContains(response, f"openCompendiumPreviewModal({self.object.pk})")
+
+    def test_search_preview_prioritizes_exact_match(self):
+        self.client.force_login(self.user)
+        GameObject.objects.create(
+            system="dnd5e",
+            object_type=GameObject.ObjectType.SPELL,
+            name="Magic Missile Volley",
+            source=GameObject.SourceType.CUSTOM,
+        )
+
+        response = self.client.get(
+            reverse("compendium:search_preview"),
+            data={"q": "Magic Missile"},
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        self.assertLess(html.find("Magic Missile"), html.find("Magic Missile Volley"))
+
+
+class CompendiumCachingTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="cache-user", password="pw12345!")
+        self.object = GameObject.objects.create(
+            system="dnd5e",
+            object_type=GameObject.ObjectType.ITEM,
+            name="Cache Blade",
+            source=GameObject.SourceType.CUSTOM,
+            description="First version",
+            data={"text": ["First version"]},
+        )
+        self.client.force_login(self.user)
+
+    def test_object_detail_refreshes_after_object_update(self):
+        first_response = self.client.get(reverse("compendium:object_detail", args=[self.object.pk]))
+        self.assertContains(first_response, "First version")
+
+        self.object.description = "Second version"
+        self.object.data = {"text": ["Second version"]}
+        self.object.save(update_fields=["description", "data", "updated_at"])
+
+        second_response = self.client.get(reverse("compendium:object_detail", args=[self.object.pk]))
+        self.assertContains(second_response, "Second version")
+        self.assertNotContains(second_response, "First version")
+
+
+class TagPermissionTests(TestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(username="tag-owner", password="pw12345!")
+        self.other = User.objects.create_user(username="tag-other", password="pw12345!")
+        self.tag = Tag.objects.create(
+            name="Owner Tag",
+            color="#123456",
+            system="dnd5e",
+            created_by=self.owner,
+            is_system_tag=False,
+        )
+
+    def test_non_owner_cannot_edit_other_users_tag(self):
+        self.client.force_login(self.other)
+
+        response = self.client.post(
+            reverse("compendium:tag_update", args=[self.tag.pk]),
+            data={"name": "Hijacked", "color": "#654321", "system": "dnd5e"},
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.tag.refresh_from_db()
+        self.assertEqual(self.tag.name, "Owner Tag")
+
+    def test_non_owner_cannot_delete_other_users_tag(self):
+        self.client.force_login(self.other)
+
+        response = self.client.post(reverse("compendium:tag_remove", args=[self.tag.pk]))
+
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(Tag.objects.filter(pk=self.tag.pk).exists())
+
+    def test_tag_list_hides_edit_controls_for_read_only_tags(self):
+        self.client.force_login(self.other)
+
+        response = self.client.get(reverse("compendium:tags"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Read only")
+        self.assertNotContains(response, 'name="is_system_tag"', html=False)

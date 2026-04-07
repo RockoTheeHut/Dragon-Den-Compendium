@@ -1,6 +1,7 @@
 import re
 
 from django.contrib.auth.decorators import login_required
+from django.db import transaction
 from django.db.models import F, Max
 from django.http import HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, render
@@ -14,6 +15,7 @@ from .forms import AddFromCompendiumForm, AddFromGamePlayerForm, TurnTrackerEntr
 from .models import StatusEffect, TurnTrackerEntry
 
 ACTIVE_TRACKER_ENCOUNTER_SESSION_KEY = "active_tracker_encounter_id"
+TRACKER_MONSTER_SEARCH_LIMIT = 30
 
 
 def _parse_int(value):
@@ -165,28 +167,43 @@ def _list_context(request):
     }
 
 
+def _monster_option_payload(monster):
+    hp_current_default, hp_max_default = _extract_hp(monster.data)
+    return {
+        "id": monster.id,
+        "name": monster.name,
+        "hp_current": "" if hp_current_default is None else hp_current_default,
+        "hp_max": "" if hp_max_default is None else hp_max_default,
+    }
+
+
+def _monster_search_results(query):
+    query = (query or "").strip()
+    if not query:
+        return []
+
+    monsters = (
+        GameObject.objects.filter(
+            object_type=GameObject.ObjectType.MONSTER,
+            name__icontains=query,
+        )
+        .only("id", "name", "data")
+        .order_by("name")[:TRACKER_MONSTER_SEARCH_LIMIT]
+    )
+    return [_monster_option_payload(monster) for monster in monsters]
+
+
 def _add_forms_context(request):
     encounter = _get_active_encounter(request)
     encounter_game = encounter.game if encounter else None
     from_compendium_form = AddFromCompendiumForm(initial={"entry_type": TurnTrackerEntry.EntryType.ENEMY, "is_active": True})
-    compendium_monster_options = []
-    for monster in from_compendium_form.fields["source"].queryset.only("id", "name", "data"):
-        hp_current_default, hp_max_default = _extract_hp(monster.data)
-        compendium_monster_options.append(
-            {
-                "id": monster.id,
-                "name": monster.name,
-                "hp_current": "" if hp_current_default is None else hp_current_default,
-                "hp_max": "" if hp_max_default is None else hp_max_default,
-            }
-        )
     condition_options = list(
         GameObject.objects.filter(object_type=GameObject.ObjectType.CONDITION).only("id", "name").order_by("name")
     )
     return {
         "manual_form": TurnTrackerEntryForm(initial={"entry_type": TurnTrackerEntry.EntryType.PLAYER, "is_active": True}),
         "from_compendium_form": from_compendium_form,
-        "compendium_monster_options": compendium_monster_options,
+        "compendium_monster_options": [],
         "from_player_form": AddFromGamePlayerForm(
             user=request.user,
             game=encounter_game,
@@ -282,7 +299,22 @@ def add_entry_modal(request):
 
 
 @login_required
+@require_GET
+def monster_options(request):
+    query = request.GET.get("q", "")
+    return render(
+        request,
+        "tracker/partials/monster_option_list.html",
+        {
+            "compendium_monster_options": _monster_search_results(query),
+            "monster_query": query.strip(),
+        },
+    )
+
+
+@login_required
 @require_POST
+@transaction.atomic
 def add_entry(request):
     form = TurnTrackerEntryForm(request.POST)
     if form.is_valid():
@@ -302,6 +334,7 @@ def add_entry(request):
 
 @login_required
 @require_POST
+@transaction.atomic
 def add_from_compendium(request):
     form = AddFromCompendiumForm(request.POST)
     if form.is_valid():
@@ -335,6 +368,7 @@ def add_from_compendium(request):
 
 @login_required
 @require_POST
+@transaction.atomic
 def add_from_game_player(request):
     encounter = _get_active_encounter(request)
     form = AddFromGamePlayerForm(request.POST, user=request.user, game=(encounter.game if encounter else None))
@@ -380,6 +414,7 @@ def edit_entry_modal(request, entry_id):
 
 @login_required
 @require_POST
+@transaction.atomic
 def edit_entry(request, entry_id):
     entry = get_object_or_404(TurnTrackerEntry, pk=entry_id, user=request.user, encounter=_get_active_encounter(request))
     form = TurnTrackerEntryForm(request.POST, instance=entry)
@@ -391,6 +426,7 @@ def edit_entry(request, entry_id):
 
 @login_required
 @require_POST
+@transaction.atomic
 def quick_update_entry(request, entry_id):
     encounter = _get_active_encounter(request)
     entry = get_object_or_404(
@@ -439,6 +475,7 @@ def quick_update_entry(request, entry_id):
 
 @login_required
 @require_POST
+@transaction.atomic
 def remove_entry(request, entry_id):
     encounter = _get_active_encounter(request)
     entry = get_object_or_404(TurnTrackerEntry, pk=entry_id, user=request.user, encounter=encounter)
@@ -449,6 +486,7 @@ def remove_entry(request, entry_id):
 
 @login_required
 @require_POST
+@transaction.atomic
 def set_current(request, entry_id):
     encounter = _get_active_encounter(request)
     entry = get_object_or_404(TurnTrackerEntry, pk=entry_id, user=request.user, encounter=encounter)
@@ -460,6 +498,7 @@ def set_current(request, entry_id):
 
 @login_required
 @require_POST
+@transaction.atomic
 def reorder_entries(request):
     encounter = _get_active_encounter(request)
     order = request.POST.get("order", "")
@@ -483,6 +522,7 @@ def reorder_entries(request):
 
 @login_required
 @require_POST
+@transaction.atomic
 def advance_turn(request):
     encounter = _get_active_encounter(request)
     active_entries = list(TurnTrackerEntry.objects.filter(user=request.user, encounter=encounter, is_active=True).order_by("sort_order", "id"))
@@ -491,29 +531,33 @@ def advance_turn(request):
         return _render_list_region(request)
 
     current_entry = TurnTrackerEntry.objects.filter(user=request.user, encounter=encounter, is_current=True).first()
+    should_decrement_effects = False
     if current_entry not in active_entries:
         next_entry = active_entries[0]
     else:
         next_index = (active_entries.index(current_entry) + 1) % len(active_entries)
         next_entry = active_entries[next_index]
+        should_decrement_effects = next_index == 0
 
     TurnTrackerEntry.objects.filter(user=request.user, encounter=encounter, is_current=True).update(is_current=False)
     next_entry.is_current = True
     next_entry.save(update_fields=["is_current"])
 
-    StatusEffect.objects.filter(
-        entry__user=request.user,
-        entry__encounter=encounter,
-        is_running=True,
-        remaining_rounds__gt=0,
-    ).update(
-        remaining_rounds=F("remaining_rounds") - 1
-    )
+    if should_decrement_effects:
+        StatusEffect.objects.filter(
+            entry__user=request.user,
+            entry__encounter=encounter,
+            is_running=True,
+            remaining_rounds__gt=0,
+        ).update(
+            remaining_rounds=F("remaining_rounds") - 1
+        )
     return _render_list_region(request)
 
 
 @login_required
 @require_POST
+@transaction.atomic
 def previous_turn(request):
     encounter = _get_active_encounter(request)
     active_entries = list(TurnTrackerEntry.objects.filter(user=request.user, encounter=encounter, is_active=True).order_by("sort_order", "id"))
@@ -536,6 +580,7 @@ def previous_turn(request):
 
 @login_required
 @require_POST
+@transaction.atomic
 def clear_entries(request):
     TurnTrackerEntry.objects.filter(user=request.user, encounter=_get_active_encounter(request)).delete()
     return _render_list_region(request)
@@ -654,6 +699,7 @@ def entry_player_modal(request, entry_id):
 
 @login_required
 @require_POST
+@transaction.atomic
 def add_status_effect(request, entry_id):
     entry = get_object_or_404(TurnTrackerEntry, pk=entry_id, user=request.user, encounter=_get_active_encounter(request))
     _create_status_effect_from_post(entry, request.POST)
@@ -662,6 +708,7 @@ def add_status_effect(request, entry_id):
 
 @login_required
 @require_POST
+@transaction.atomic
 def play_status_effect(request, effect_id):
     effect = get_object_or_404(
         StatusEffect,
@@ -676,6 +723,7 @@ def play_status_effect(request, effect_id):
 
 @login_required
 @require_POST
+@transaction.atomic
 def pause_status_effect(request, effect_id):
     effect = get_object_or_404(
         StatusEffect,
@@ -690,6 +738,7 @@ def pause_status_effect(request, effect_id):
 
 @login_required
 @require_POST
+@transaction.atomic
 def reset_status_effect(request, effect_id):
     effect = get_object_or_404(
         StatusEffect,
@@ -704,6 +753,7 @@ def reset_status_effect(request, effect_id):
 
 @login_required
 @require_POST
+@transaction.atomic
 def remove_status_effect(request, effect_id):
     effect = get_object_or_404(
         StatusEffect,

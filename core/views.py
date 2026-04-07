@@ -1,4 +1,3 @@
-import os
 import tempfile
 from pathlib import Path
 
@@ -7,18 +6,19 @@ from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse
+from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect
 from django.shortcuts import render
 from django.views.decorators.http import require_POST
-from django.core.management.base import CommandError
+from django.views.decorators.http import require_GET
 from django.db.models import Count
 
-from compendium.management.commands.import_fightclub_xml import import_fightclub_xml_path
 from compendium.models import Favorite
 from games.models import Game
 
 from .forms import CompendiumUploadImportForm, SignUpForm, UserSettingsForm
-from .models import UserImportedObject, UserSettings
+from .import_jobs import schedule_import_job
+from .models import CompendiumImportJob, UserImportedObject, UserSettings
 from .rendering import render_page
 
 
@@ -99,7 +99,7 @@ def _settings_context(request, settings_form=None, upload_form=None, import_resu
     has_server_xml = bool(server_xml_path)
     settings_form = settings_form or UserSettingsForm(
         initial={
-            "openai_api_key": user_settings.openai_api_key if user_settings else "",
+            "openai_api_key": user_settings.get_openai_api_key() if user_settings else "",
         }
     )
     upload_form = upload_form or CompendiumUploadImportForm(
@@ -110,14 +110,23 @@ def _settings_context(request, settings_form=None, upload_form=None, import_resu
     )
     if not has_server_xml:
         upload_form.fields["use_server_xml"].widget.attrs["disabled"] = "disabled"
+    active_import_job = (
+        CompendiumImportJob.objects.filter(
+            user=request.user,
+            status__in=[CompendiumImportJob.Status.PENDING, CompendiumImportJob.Status.RUNNING],
+        )
+        .order_by("-created_at", "-id")
+        .first()
+    )
     return {
         "settings_form": settings_form,
         "compendium_upload_form": upload_form,
         "server_compendium_xml_path": server_xml_path,
         "has_server_compendium_xml_path": has_server_xml,
         "in_modal": in_modal,
-        "has_user_openai_api_key": bool(user_settings and user_settings.openai_api_key),
+        "has_user_openai_api_key": bool(user_settings and user_settings.get_openai_api_key()),
         "import_result_message": import_result_message,
+        "active_import_job": active_import_job,
     }
 
 
@@ -127,9 +136,9 @@ def save_settings(request):
     settings_form = UserSettingsForm(request.POST)
     if settings_form.is_valid():
         user_settings = UserSettings.for_user(request.user)
-        user_settings.openai_api_key = settings_form.cleaned_data["openai_api_key"].strip()
+        user_settings.set_openai_api_key(settings_form.cleaned_data["openai_api_key"])
         user_settings.save(update_fields=["openai_api_key", "updated_at"])
-        if user_settings.openai_api_key:
+        if user_settings.get_openai_api_key():
             messages.success(request, "Settings saved.")
         else:
             messages.success(request, "Settings saved. OpenAI API key cleared.")
@@ -141,7 +150,7 @@ def save_settings(request):
 @login_required
 @require_POST
 def import_user_compendium_xml(request):
-    """Import XML from either user upload or a configured server-side path."""
+    """Create an import job for either user upload or a configured server-side path."""
     upload_form = CompendiumUploadImportForm(request.POST, request.FILES)
     import_result_message = ""
     temp_path = None
@@ -157,45 +166,41 @@ def import_user_compendium_xml(request):
                 context = _settings_context(request, upload_form=upload_form, import_result_message=import_result_message)
                 return _render_settings_modal_response(request, context, trigger_compendium_reload=False)
             import_path = Path(server_xml_path)
+            upload_filename = import_path.name
         else:
             uploaded_file = upload_form.cleaned_data["xml_file"]
             try:
-                # Persist upload to a temporary file because the importer expects a filesystem path.
                 with tempfile.NamedTemporaryFile(prefix="user-compendium-", suffix=".xml", delete=False) as temp_file:
                     for chunk in uploaded_file.chunks():
                         temp_file.write(chunk)
                     temp_path = Path(temp_file.name)
                 import_path = temp_path
+                upload_filename = uploaded_file.name or temp_path.name
             except OSError as exc:
                 import_result_message = f"Import failed: {exc}"
                 messages.error(request, import_result_message)
                 context = _settings_context(request, upload_form=upload_form, import_result_message=import_result_message)
                 return _render_settings_modal_response(request, context, trigger_compendium_reload=False)
 
-        should_reload_compendium = False
-        try:
-            result = import_fightclub_xml_path(file_path=import_path, system=system)
-            touched_ids = list(result.get("touched_object_ids") or [])
-            if touched_ids:
-                UserImportedObject.objects.bulk_create(
-                    [UserImportedObject(user=request.user, game_object_id=object_id) for object_id in touched_ids],
-                    ignore_conflicts=True,
-                )
-            import_result_message = (
-                f"Import complete. Created={result['created']}, Updated={result['updated']}, Unchanged={result['unchanged']}"
-            )
+        job = CompendiumImportJob.objects.create(
+            user=request.user,
+            system=system,
+            use_server_xml=use_server_xml,
+            import_path=str(import_path),
+            upload_filename=upload_filename,
+            status=CompendiumImportJob.Status.PENDING,
+            result_message="Import queued.",
+        )
+        schedule_import_job(job.pk)
+        job.refresh_from_db()
+        should_reload_compendium = job.status == CompendiumImportJob.Status.SUCCEEDED
+        import_result_message = job.result_message or "Import queued."
+        if should_reload_compendium:
             messages.success(request, import_result_message)
-            should_reload_compendium = True
-        except CommandError as exc:
-            import_result_message = f"Import failed: {exc}"
+        elif job.status == CompendiumImportJob.Status.FAILED:
             messages.error(request, import_result_message)
-        finally:
-            # Always remove temporary uploads after import attempts.
-            if not use_server_xml and temp_path and temp_path.exists():
-                try:
-                    os.unlink(temp_path)
-                except OSError:
-                    pass
+        else:
+            messages.success(request, "Import started in the background.")
     else:
         import_result_message = "Import failed. Upload a valid .xml file or enable server-wide XML."
         messages.error(request, import_result_message)
@@ -203,6 +208,16 @@ def import_user_compendium_xml(request):
 
     context = _settings_context(request, upload_form=upload_form, import_result_message=import_result_message)
     return _render_settings_modal_response(request, context, trigger_compendium_reload=should_reload_compendium)
+
+
+@login_required
+@require_GET
+def import_job_status(request, job_id):
+    job = get_object_or_404(CompendiumImportJob, pk=job_id, user=request.user)
+    response = render(request, "core/import_job_status.html", {"job": job})
+    if job.status == CompendiumImportJob.Status.SUCCEEDED:
+        response["HX-Trigger"] = "compendiumReloadRequested"
+    return response
 
 
 @login_required

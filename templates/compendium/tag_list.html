@@ -29,24 +29,24 @@
               <td>{{ tag.system }}</td>
               <td>{% if tag.is_system_tag %}System{% else %}User{% endif %}</td>
               <td>
-                <details>
-                  <summary>Edit</summary>
-                  <form method="post" action="{% url 'compendium:tag_update' tag.pk %}">
+                {% if not tag.is_system_tag and tag.created_by_id == user.id %}
+                  <details>
+                    <summary>Edit</summary>
+                    <form method="post" action="{% url 'compendium:tag_update' tag.pk %}">
+                      {% csrf_token %}
+                      <input type="text" name="name" value="{{ tag.name }}" required>
+                      <input type="color" name="color" value="{{ tag.color }}" required>
+                      <input type="text" name="system" value="{{ tag.system }}" required>
+                      <button class="button" type="submit">Save</button>
+                    </form>
+                  </details>
+                  <form method="post" action="{% url 'compendium:tag_remove' tag.pk %}">
                     {% csrf_token %}
-                    <input type="text" name="name" value="{{ tag.name }}" required>
-                    <input type="color" name="color" value="{{ tag.color }}" required>
-                    <input type="text" name="system" value="{{ tag.system }}" required>
-                    <label>
-                      <input type="checkbox" name="is_system_tag" {% if tag.is_system_tag %}checked{% endif %}>
-                      System tag
-                    </label>
-                    <button class="button" type="submit">Save</button>
+                    <button class="button danger" type="submit">Delete</button>
                   </form>
-                </details>
-                <form method="post" action="{% url 'compendium:tag_remove' tag.pk %}">
-                  {% csrf_token %}
-                  <button class="button danger" type="submit">Delete</button>
-                </form>
+                {% else %}
+                  <span class="muted">Read only</span>
+                {% endif %}
               </td>
             </tr>
           {% endfor %}

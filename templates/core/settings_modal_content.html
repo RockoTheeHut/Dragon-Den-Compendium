@@ -5,6 +5,10 @@
     <p class="settings-status">{{ import_result_message }}</p>
   {% endif %}
 
+  {% if active_import_job %}
+    {% include "core/import_job_status.html" with job=active_import_job %}
+  {% endif %}
+
   <section class="settings-card">
     <h3 class="settings-card-title">AI Settings</h3>
     <form id="user-settings-form" method="post" action="{% url 'core:save_settings' %}" hx-post="{% url 'core:save_settings' %}" hx-target="#settings-modal-content" hx-swap="innerHTML" class="settings-form-grid">

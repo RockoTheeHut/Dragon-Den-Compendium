@@ -81,7 +81,7 @@ class GameObjectEditForm(forms.ModelForm):
 class TagForm(forms.ModelForm):
     class Meta:
         model = Tag
-        fields = ["name", "color", "system", "is_system_tag"]
+        fields = ["name", "color", "system"]
         widgets = {
             "color": forms.TextInput(attrs={"type": "color"}),
         }

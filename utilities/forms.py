@@ -70,6 +70,16 @@ class MagicItemSaveGameForm(forms.Form):
     generated_payload = forms.CharField(widget=forms.HiddenInput)
     game = forms.ModelChoiceField(queryset=Game.objects.order_by("title"))
 
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop("user", None)
+        super().__init__(*args, **kwargs)
+        queryset = Game.objects.order_by("title")
+        if user and user.is_authenticated:
+            queryset = queryset.filter(created_by=user)
+        else:
+            queryset = queryset.none()
+        self.fields["game"].queryset = queryset
+
     def clean_generated_payload(self):
         """Ensure generated payload remains a JSON object before persistence."""
         payload = self.cleaned_data["generated_payload"]

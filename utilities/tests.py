@@ -6,6 +6,7 @@ from django.urls import reverse
 
 from compendium.models import GameObject
 from core.models import UserSettings
+from games.models import Game, GameObjectInstance
 
 
 class DiceToolTests(TestCase):
@@ -235,3 +236,31 @@ class MagicItemSettingsTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "OpenAI is not configured for your account")
         self.assertContains(response, '<button class="button" type="submit" disabled>Generate</button>', html=False)
+
+    def test_magic_item_generator_game_picker_only_shows_users_games(self):
+        owned_game = Game.objects.create(title="Owned Game", created_by=self.user)
+        other_user = User.objects.create_user(username="other-mage", password="pw12345!")
+        other_game = Game.objects.create(title="Other Game", created_by=other_user)
+
+        response = self.client.get(reverse("utilities:magic_item"))
+
+        self.assertEqual(response.status_code, 200)
+        game_queryset = response.context["save_game_form"].fields["game"].queryset
+        self.assertIn(owned_game, game_queryset)
+        self.assertNotIn(other_game, game_queryset)
+
+    def test_save_magic_item_to_game_rejects_other_users_game(self):
+        other_user = User.objects.create_user(username="other-owner", password="pw12345!")
+        other_game = Game.objects.create(title="Other Game", created_by=other_user)
+
+        response = self.client.post(
+            reverse("utilities:save_magic_item_game"),
+            data={
+                "generated_payload": '{"name":"Frost Key","description":"Cold.","mechanics":"Unlocks ice.","suggested_tags":[]}',
+                "game": other_game.pk,
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(GameObject.objects.filter(name="Frost Key").exists())
+        self.assertFalse(GameObjectInstance.objects.filter(game=other_game, name="Frost Key").exists())

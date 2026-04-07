@@ -40,14 +40,23 @@
       <form method="post" action="{% url 'tracker:add_from_compendium' %}" hx-post="{% url 'tracker:add_from_compendium' %}" hx-target="#tracker-list-region" hx-swap="outerHTML" hx-on::after-request="if(event.detail.successful){ closeTrackerModal('tracker-add-modal'); }" class="tracker-entry-form" data-compendium-hp-autofill="1">
         {% csrf_token %}
         <div class="tracker-form-grid">
-          <label class="tracker-form-span">Search Monster <input type="search" class="tracker-search-input" placeholder="Type to filter monsters..." data-filter-select="{{ from_compendium_form.source.id_for_label }}"></label>
+          <label class="tracker-form-span">
+            Search Monster
+            <input
+              type="search"
+              class="tracker-search-input"
+              name="q"
+              placeholder="Type at least one character..."
+              hx-get="{% url 'tracker:monster_options' %}"
+              hx-trigger="keyup changed delay:200ms, search"
+              hx-target="#{{ from_compendium_form.source.id_for_label }}"
+              hx-swap="innerHTML"
+            >
+          </label>
           <label class="tracker-form-span">
             Monster
             <select name="{{ from_compendium_form.source.html_name }}" id="{{ from_compendium_form.source.id_for_label }}" required>
-              <option value="">---------</option>
-              {% for monster in compendium_monster_options %}
-                <option value="{{ monster.id }}" data-hp-current="{{ monster.hp_current }}" data-hp-max="{{ monster.hp_max }}">{{ monster.name }}</option>
-              {% endfor %}
+              {% include "tracker/partials/monster_option_list.html" with compendium_monster_options=compendium_monster_options monster_query="" only %}
             </select>
           </label>
           <label>Entry Type {{ from_compendium_form.entry_type }}</label>

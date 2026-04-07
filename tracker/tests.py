@@ -138,7 +138,7 @@ class TurnTrackerTests(TestCase):
         self.assertContains(response, "Shortsword")
         self.assertContains(response, "Shortbow")
 
-    def test_advance_turn_decrements_only_running_status_effects(self):
+    def test_advance_turn_decrements_only_running_status_effects_on_round_wrap(self):
         first = TurnTrackerEntry.objects.create(
             user=self.user,
             name="Fighter",
@@ -179,6 +179,18 @@ class TurnTrackerTests(TestCase):
 
         self.assertFalse(first.is_current)
         self.assertTrue(second.is_current)
+        self.assertEqual(running.remaining_rounds, 3)
+        self.assertEqual(paused.remaining_rounds, 4)
+
+        self.client.post(reverse("tracker:advance_turn"))
+
+        first.refresh_from_db()
+        second.refresh_from_db()
+        running.refresh_from_db()
+        paused.refresh_from_db()
+
+        self.assertTrue(first.is_current)
+        self.assertFalse(second.is_current)
         self.assertEqual(running.remaining_rounds, 2)
         self.assertEqual(paused.remaining_rounds, 4)
 
@@ -246,7 +258,7 @@ class TurnTrackerTests(TestCase):
         self.assertContains(response, "Poisoned")
         self.assertContains(response, f"openCompendiumPreviewModal({condition.pk})")
 
-    def test_add_entry_modal_compendium_options_include_hp_defaults(self):
+    def test_monster_options_search_returns_hp_defaults(self):
         monster = GameObject.objects.create(
             system="dnd5e",
             object_type=GameObject.ObjectType.MONSTER,
@@ -255,13 +267,32 @@ class TurnTrackerTests(TestCase):
             data={"hp": "59 (7d10+21)"},
         )
 
+        response = self.client.get(
+            reverse("tracker:monster_options"),
+            data={"q": "Ogr"},
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, f'value="{monster.pk}"', html=False)
+        self.assertContains(response, 'data-hp-max="59"', html=False)
+        self.assertContains(response, 'data-hp-current="59"', html=False)
+
+    def test_add_entry_modal_does_not_preload_full_monster_list(self):
+        GameObject.objects.create(
+            system="dnd5e",
+            object_type=GameObject.ObjectType.MONSTER,
+            name="Hidden Ogre",
+            source=GameObject.SourceType.CUSTOM,
+            data={"hp": "59 (7d10+21)"},
+        )
+
         response = self.client.get(reverse("tracker:add_entry_modal"), HTTP_HX_REQUEST="true")
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'data-compendium-hp-autofill="1"', html=False)
-        self.assertContains(response, f'value="{monster.pk}"', html=False)
-        self.assertContains(response, 'data-hp-max="59"', html=False)
-        self.assertContains(response, 'data-hp-current="59"', html=False)
+        self.assertContains(response, "Search to load monsters")
+        self.assertNotContains(response, "Hidden Ogre")
 
     def test_enemy_status_effect_chip_opens_status_modal_with_effect_id(self):
         entry = TurnTrackerEntry.objects.create(

@@ -1,0 +1,21 @@
+<section
+  id="import-job-status-{{ job.id }}"
+  class="settings-card"
+  {% if job.status == "pending" or job.status == "running" %}
+    hx-get="{% url 'core:import_job_status' job.id %}"
+    hx-trigger="load delay:800ms"
+    hx-target="this"
+    hx-swap="outerHTML"
+  {% endif %}
+>
+  <h3 class="settings-card-title">Import Status</h3>
+  <p class="settings-status">
+    {{ job.get_status_display }}{% if job.upload_filename %}: {{ job.upload_filename }}{% endif %}
+  </p>
+  <p class="muted settings-help-text">{{ job.result_message }}</p>
+  {% if job.status == "succeeded" %}
+    <p class="muted settings-help-text">
+      Created={{ job.created_count }}, Updated={{ job.updated_count }}, Unchanged={{ job.unchanged_count }}
+    </p>
+  {% endif %}
+</section>

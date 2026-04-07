@@ -132,7 +132,7 @@ def magic_item_generator(request):
     generated_json = ""
     form = MagicItemGeneratorForm(request.POST or None)
     save_global_form = MagicItemSaveGlobalForm()
-    save_game_form = MagicItemSaveGameForm()
+    save_game_form = MagicItemSaveGameForm(user=request.user)
     effective_api_key = _resolve_openai_api_key(request.user)
     openai_ready = bool(effective_api_key and settings.OPENAI_DEFAULT_MODEL)
     if request.method == "POST":
@@ -184,7 +184,7 @@ def save_magic_item_global(request):
 @login_required
 @require_POST
 def save_magic_item_to_game(request):
-    form = MagicItemSaveGameForm(request.POST)
+    form = MagicItemSaveGameForm(request.POST, user=request.user)
     if not form.is_valid():
         return HttpResponseBadRequest("Invalid save request.")
 

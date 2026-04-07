@@ -8,7 +8,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 
 from compendium.models import Favorite, GameObject
 from games.models import Game
-from .models import UserImportedObject, UserSettings
+from .models import CompendiumImportJob, UserImportedObject, UserSettings
 
 
 class HomeViewTests(TestCase):
@@ -89,7 +89,8 @@ class UserSettingsTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         settings_row = UserSettings.objects.get(user=self.user)
-        self.assertEqual(settings_row.openai_api_key, "sk-user-abc123")
+        self.assertNotEqual(settings_row.openai_api_key, "sk-user-abc123")
+        self.assertEqual(settings_row.get_openai_api_key(), "sk-user-abc123")
 
     def test_save_settings_can_clear_openai_api_key(self):
         UserSettings.objects.create(user=self.user, openai_api_key="sk-user-existing")
@@ -103,6 +104,7 @@ class UserSettingsTests(TestCase):
         settings_row = UserSettings.objects.get(user=self.user)
         self.assertEqual(settings_row.openai_api_key, "")
 
+    @override_settings(COMPENDIUM_IMPORT_ASYNC=False)
     def test_import_user_compendium_xml_from_upload(self):
         xml_payload = b"""
         <compendium>
@@ -138,6 +140,7 @@ class UserSettingsTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Server compendium path is not configured.")
 
+    @override_settings(COMPENDIUM_IMPORT_ASYNC=False)
     def test_import_server_compendium_xml_uses_configured_path(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             xml_path = Path(temp_dir) / "server.xml"
@@ -220,3 +223,20 @@ class UserSettingsTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertFalse(GameObject.objects.filter(pk=legacy_import.pk).exists())
         self.assertContains(response, "Removed 1 legacy imported objects.")
+
+    def test_import_job_status_partial_renders_for_running_job(self):
+        job = CompendiumImportJob.objects.create(
+            user=self.user,
+            system="dnd5e",
+            use_server_xml=False,
+            import_path="/tmp/example.xml",
+            upload_filename="example.xml",
+            status=CompendiumImportJob.Status.RUNNING,
+            result_message="Import in progress...",
+        )
+
+        response = self.client.get(reverse("core:import_job_status", args=[job.pk]), HTTP_HX_REQUEST="true")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Import Status")
+        self.assertContains(response, "Import in progress...")
