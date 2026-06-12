@@ -36,6 +36,13 @@ class GameObject(models.Model):
     external_id = models.CharField(max_length=255, blank=True, null=True, db_index=True)
     description = models.TextField(blank=True, null=True)
     data = models.JSONField(default=dict, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_game_objects",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     tags = models.ManyToManyField("Tag", through="GameObjectTag", related_name="game_objects", blank=True)
@@ -44,6 +51,13 @@ class GameObject(models.Model):
         indexes = [
             models.Index(fields=["system", "object_type", "name"]),
             models.Index(fields=["system", "external_id"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["system", "object_type", "external_id"],
+                name="unique_external_id_per_system_type",
+                condition=models.Q(external_id__isnull=False) & ~models.Q(external_id=""),
+            ),
         ]
 
     def __str__(self):

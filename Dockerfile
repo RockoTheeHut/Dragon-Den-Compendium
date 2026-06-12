@@ -44,4 +44,7 @@ RUN mkdir -p /app/data /app/staticfiles \
 
 EXPOSE 8000
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=5 \
+  CMD wget -qO- "http://127.0.0.1:${PORT:-8000}/healthz/" || exit 1
+
 CMD ["/app/docker/entrypoint.sh"]

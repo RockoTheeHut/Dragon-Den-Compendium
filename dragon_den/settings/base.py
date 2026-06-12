@@ -35,13 +35,24 @@ def _env_bool(name, default=False):
 
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-only-secret-key-change-me")
 DEBUG = _env_bool("DEBUG", default=False)
-REQUIRE_STRONG_SECRET_KEY = _env_bool("REQUIRE_STRONG_SECRET_KEY", default=False)
-if REQUIRE_STRONG_SECRET_KEY and SECRET_KEY in {"", "replace-me", "replace-me-in-production", "dev-only-secret-key-change-me"}:
-    raise ImproperlyConfigured("Set a strong SECRET_KEY for non-debug deployments.")
+REQUIRE_STRONG_SECRET_KEY = _env_bool("REQUIRE_STRONG_SECRET_KEY", default=not DEBUG)
+_PLACEHOLDER_SECRET_KEYS = {"", "replace-me", "replace-me-in-production", "dev-only-secret-key-change-me"}
+if REQUIRE_STRONG_SECRET_KEY and SECRET_KEY in _PLACEHOLDER_SECRET_KEYS:
+    raise ImproperlyConfigured(
+        "Set a strong SECRET_KEY for non-debug deployments. Generate one with: "
+        "python -c \"import secrets; print(secrets.token_urlsafe(50))\" "
+        "(or set REQUIRE_STRONG_SECRET_KEY=0 to opt out for throwaway environments)."
+    )
+
+# Optional dedicated key for encrypting stored user secrets. Falls back to a
+# key derived from SECRET_KEY, but a dedicated key lets you rotate SECRET_KEY
+# without invalidating every stored API key.
+FIELD_ENCRYPTION_KEY = os.getenv("FIELD_ENCRYPTION_KEY", "")
 
 ALLOWED_HOSTS = [host.strip() for host in os.getenv("ALLOWED_HOSTS", "127.0.0.1,localhost").split(",") if host.strip()]
 
 INSTALLED_APPS = [
+    "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
@@ -92,7 +103,40 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": os.getenv("SQLITE_PATH", str(BASE_DIR / "db.sqlite3")),
+        # WAL + a busy timeout keep multiple gunicorn workers from hitting
+        # "database is locked" errors on concurrent writes.
+        "OPTIONS": {
+            "timeout": 20,
+            "init_command": "PRAGMA journal_mode=WAL;PRAGMA synchronous=NORMAL;",
+            "transaction_mode": "IMMEDIATE",
+        },
     }
+}
+
+# Cross-process cache so per-object render caching survives across gunicorn
+# workers; dev keeps the in-memory default.
+if DEBUG:
+    CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.filebased.FileBasedCache",
+            "LOCATION": os.getenv("DJANGO_CACHE_DIR", str(BASE_DIR / ".django_cache")),
+            "TIMEOUT": 3600,
+            "OPTIONS": {"MAX_ENTRIES": 5000},
+        }
+    }
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "standard": {"format": "{levelname} {asctime} {name} {message}", "style": "{"},
+    },
+    "handlers": {
+        "console": {"class": "logging.StreamHandler", "formatter": "standard"},
+    },
+    "root": {"handlers": ["console"], "level": os.getenv("DJANGO_LOG_LEVEL", "INFO")},
 }
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -113,7 +157,7 @@ AUTH_PASSWORD_VALIDATORS = [
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = os.getenv("TIME_ZONE", "America/New_York")
 USE_I18N = True
-USE_TZ = False
+USE_TZ = True
 
 STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
@@ -139,7 +183,10 @@ SERVER_COMPENDIUM_XML_PATH = os.getenv("SERVER_COMPENDIUM_XML_PATH", "")
 SERVER_COMPENDIUM_SYSTEM = os.getenv("SERVER_COMPENDIUM_SYSTEM", "dnd5e")
 COMPENDIUM_IMPORT_ASYNC = _env_bool("COMPENDIUM_IMPORT_ASYNC", default=True)
 
-SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+# Only trust X-Forwarded-Proto when explicitly running behind a reverse proxy
+# (a directly reachable gunicorn must not let clients spoof the header).
+TRUST_PROXY_SSL_HEADER = _env_bool("TRUST_PROXY_SSL_HEADER", default=False)
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https") if TRUST_PROXY_SSL_HEADER else None
 SECURE_SSL_REDIRECT = _env_bool("SECURE_SSL_REDIRECT", default=False)
 SESSION_COOKIE_SECURE = _env_bool("SESSION_COOKIE_SECURE", default=False)
 CSRF_COOKIE_SECURE = _env_bool("CSRF_COOKIE_SECURE", default=False)

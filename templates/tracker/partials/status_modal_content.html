@@ -10,18 +10,22 @@
           {% endif %}
           <form method="post" action="{% url 'tracker:play_status_effect' effect.id %}" hx-post="{% url 'tracker:play_status_effect' effect.id %}" hx-target="#tracker-list-region" hx-swap="outerHTML" hx-on::after-request="if(event.detail.successful){ closeTrackerModal('tracker-status-modal'); }">
             {% csrf_token %}
+      <input type="hidden" name="encounter_id" value="{{ entry.encounter_id|default_if_none:'' }}">
             <button class="button small ghost" type="submit">Play</button>
           </form>
           <form method="post" action="{% url 'tracker:pause_status_effect' effect.id %}" hx-post="{% url 'tracker:pause_status_effect' effect.id %}" hx-target="#tracker-list-region" hx-swap="outerHTML" hx-on::after-request="if(event.detail.successful){ closeTrackerModal('tracker-status-modal'); }">
             {% csrf_token %}
+      <input type="hidden" name="encounter_id" value="{{ entry.encounter_id|default_if_none:'' }}">
             <button class="button small ghost" type="submit">Pause</button>
           </form>
           <form method="post" action="{% url 'tracker:reset_status_effect' effect.id %}" hx-post="{% url 'tracker:reset_status_effect' effect.id %}" hx-target="#tracker-list-region" hx-swap="outerHTML" hx-on::after-request="if(event.detail.successful){ closeTrackerModal('tracker-status-modal'); }">
             {% csrf_token %}
+      <input type="hidden" name="encounter_id" value="{{ entry.encounter_id|default_if_none:'' }}">
             <button class="button small ghost" type="submit">Reset</button>
           </form>
           <form method="post" action="{% url 'tracker:remove_status_effect' effect.id %}" hx-post="{% url 'tracker:remove_status_effect' effect.id %}" hx-target="#tracker-list-region" hx-swap="outerHTML" hx-on::after-request="if(event.detail.successful){ closeTrackerModal('tracker-status-modal'); }">
             {% csrf_token %}
+      <input type="hidden" name="encounter_id" value="{{ entry.encounter_id|default_if_none:'' }}">
             <button class="button small danger" type="submit">Remove</button>
           </form>
         </div>
@@ -33,6 +37,7 @@
 
   <form method="post" action="{% url 'tracker:add_status_effect' entry.id %}" hx-post="{% url 'tracker:add_status_effect' entry.id %}" hx-target="#tracker-list-region" hx-swap="outerHTML" hx-on::after-request="if(event.detail.successful){ closeTrackerModal('tracker-status-modal'); }" class="tracker-inline-form">
     {% csrf_token %}
+      <input type="hidden" name="encounter_id" value="{{ entry.encounter_id|default_if_none:'' }}">
     <select name="status_effect_condition_id">
       <option value="">Choose condition (optional)</option>
       {% for condition in condition_options %}

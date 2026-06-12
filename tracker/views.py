@@ -3,11 +3,12 @@ import re
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import F, Max
-from django.http import HttpResponseBadRequest
+from django.http import Http404, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, render
 from django.views.decorators.http import require_GET, require_POST
 
 from compendium.models import GameObject
+from compendium.text_utils import extract_monster_attacks
 from core.rendering import render_page
 from games.models import Encounter, GamePlayer
 
@@ -67,6 +68,24 @@ def _clear_active_encounter(request):
 
 
 def _get_active_encounter(request):
+    # An explicit encounter_id in the POST body wins over the session, so two
+    # tabs tracking different encounters don't clobber each other through the
+    # shared session key. An empty value means the standalone tracker.
+    if request.method == "POST" and "encounter_id" in request.POST:
+        raw_id = (request.POST.get("encounter_id") or "").strip()
+        if not raw_id:
+            return None
+        if not raw_id.isdigit():
+            raise Http404("Encounter not found.")
+        encounter = (
+            Encounter.objects.select_related("game")
+            .filter(pk=int(raw_id), game__created_by=request.user)
+            .first()
+        )
+        if encounter is None:
+            raise Http404("Encounter not found.")
+        return encounter
+
     raw_id = request.session.get(ACTIVE_TRACKER_ENCOUNTER_SESSION_KEY)
     try:
         encounter_id = int(raw_id)
@@ -129,34 +148,13 @@ def _resolve_compendium_object_for_entry(entry):
 
 
 def _extract_attack_actions(monster_data):
-    """Normalize monster actions into a display-friendly attack list."""
-    raw_actions = monster_data.get("action")
-    if isinstance(raw_actions, dict):
-        action_items = [raw_actions]
-    elif isinstance(raw_actions, list):
-        action_items = [item for item in raw_actions if isinstance(item, dict)]
-    else:
-        action_items = []
-
-    normalized = []
-    for action in action_items:
-        name = str(action.get("name") or "").strip()
-        text = str(action.get("text") or "").strip()
-        attack_expr = str(action.get("attack") or "").strip()
-        if not text and attack_expr:
-            text = attack_expr
-        if not name:
-            name = "Attack"
-        normalized.append(
-            {
-                "name": name,
-                "text": text,
-                "is_attack": bool(attack_expr) or "attack:" in text.lower() or "weapon attack" in text.lower() or "spell attack" in text.lower(),
-            }
-        )
-
-    attacks_only = [item for item in normalized if item["is_attack"]]
-    return attacks_only if attacks_only else normalized
+    """Display adapter over the canonical extractor in compendium.text_utils."""
+    if not isinstance(monster_data, dict):
+        return []
+    return [
+        {"name": entry["name"], "text": " ".join(entry["text_lines"]).strip()}
+        for entry in extract_monster_attacks(monster_data)
+    ]
 
 
 def _list_context(request):
@@ -210,6 +208,7 @@ def _add_forms_context(request):
             initial={"is_active": True},
         ),
         "condition_options": condition_options,
+        "encounter": encounter,
     }
 
 
@@ -223,6 +222,20 @@ def _render_quick_update_response(request, entry):
     if request.headers.get("HX-Request"):
         return render(request, "tracker/partials/quick_update_oob.html", {"entry": entry})
     return _render_list_region(request)
+
+
+def _next_sort_order(user, encounter):
+    """Allocate the next sort_order for a user's tracker list.
+
+    Callers run inside transaction.atomic; with SQLite's IMMEDIATE
+    transactions concurrent allocations are serialized at BEGIN.
+    """
+    max_sort = (
+        TurnTrackerEntry.objects.filter(user=user, encounter=encounter)
+        .aggregate(max_sort=Max("sort_order"))
+        .get("max_sort")
+    )
+    return (max_sort + 1) if max_sort is not None else 0
 
 
 def _normalize_sort_order(user, encounter=None):
@@ -281,9 +294,11 @@ def _create_status_effect_from_post(entry, post_data):
 
 @login_required
 def dashboard(request):
-    encounter_id = request.GET.get("encounter", "").strip()
-    if encounter_id:
-        encounter = Encounter.objects.filter(pk=encounter_id, game__created_by=request.user).first()
+    raw_encounter_id = request.GET.get("encounter", "").strip()
+    if raw_encounter_id:
+        if not raw_encounter_id.isdigit():
+            return HttpResponseBadRequest("Encounter not found.")
+        encounter = Encounter.objects.filter(pk=int(raw_encounter_id), game__created_by=request.user).first()
         if encounter is None:
             return HttpResponseBadRequest("Encounter not found.")
         request.session[ACTIVE_TRACKER_ENCOUNTER_SESSION_KEY] = encounter.pk
@@ -319,11 +334,10 @@ def add_entry(request):
     form = TurnTrackerEntryForm(request.POST)
     if form.is_valid():
         encounter = _get_active_encounter(request)
-        max_sort = TurnTrackerEntry.objects.filter(user=request.user, encounter=encounter).aggregate(max_sort=Max("sort_order")).get("max_sort")
         entry = form.save(commit=False)
         entry.user = request.user
         entry.encounter = encounter
-        entry.sort_order = (max_sort + 1) if max_sort is not None else 0
+        entry.sort_order = _next_sort_order(request.user, encounter)
         entry.source_kind = TurnTrackerEntry.SourceKind.MANUAL
         entry.save()
         _create_status_effect_from_post(entry, request.POST)
@@ -343,7 +357,6 @@ def add_from_compendium(request):
         hp_current_default, hp_max_default = _extract_hp(source.data)
         source_snapshot = dict(source.data) if isinstance(source.data, dict) else {}
         source_snapshot["_source_object_id"] = source.pk
-        max_sort = TurnTrackerEntry.objects.filter(user=request.user, encounter=encounter).aggregate(max_sort=Max("sort_order")).get("max_sort")
         entry = TurnTrackerEntry.objects.create(
             user=request.user,
             encounter=encounter,
@@ -358,7 +371,7 @@ def add_from_compendium(request):
             source_kind=TurnTrackerEntry.SourceKind.COMPENDIUM_MONSTER,
             source_name=source.name,
             source_snapshot=source_snapshot,
-            sort_order=(max_sort + 1) if max_sort is not None else 0,
+            sort_order=_next_sort_order(request.user, encounter),
         )
         _create_status_effect_from_post(entry, request.POST)
         return _render_list_region(request)
@@ -374,7 +387,6 @@ def add_from_game_player(request):
     form = AddFromGamePlayerForm(request.POST, user=request.user, game=(encounter.game if encounter else None))
     if form.is_valid():
         source = form.cleaned_data["source"]
-        max_sort = TurnTrackerEntry.objects.filter(user=request.user, encounter=encounter).aggregate(max_sort=Max("sort_order")).get("max_sort")
         entry = TurnTrackerEntry.objects.create(
             user=request.user,
             encounter=encounter,
@@ -396,7 +408,7 @@ def add_from_game_player(request):
                 "wisdom": source.wisdom,
                 "charisma": source.charisma,
             },
-            sort_order=(max_sort + 1) if max_sort is not None else 0,
+            sort_order=_next_sort_order(request.user, encounter),
         )
         _create_status_effect_from_post(entry, request.POST)
         return _render_list_region(request)

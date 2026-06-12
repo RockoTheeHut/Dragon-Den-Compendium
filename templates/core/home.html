@@ -1,3 +1,4 @@
+{% load compendium_extras %}
 <section class="panel home-hero-panel">
   <h1>Dungeon Master Assistant</h1>
   <p>Use the sidebar to manage your compendium, games, notes, and utilities.</p>
@@ -40,10 +41,7 @@
           {% for favorite in favorite_objects %}
             <tr>
               <td id="favorite-button-{{ favorite.game_object.pk }}">
-                <form method="post" action="{% url 'compendium:toggle_favorite' favorite.game_object.pk %}" hx-post="{% url 'compendium:toggle_favorite' favorite.game_object.pk %}" hx-target="#favorite-button-{{ favorite.game_object.pk }}" hx-swap="innerHTML">
-                  {% csrf_token %}
-                  <button class="favorite-btn" type="submit" title="Toggle favorite">⭐</button>
-                </form>
+                {% include "compendium/partials/favorite_button.html" with game_object=favorite.game_object is_favorite=True %}
               </td>
               <td>
                 <a href="{% url 'compendium:object_detail' favorite.game_object.pk %}" hx-get="{% url 'compendium:object_detail' favorite.game_object.pk %}" hx-target="#main-content" hx-push-url="true">
@@ -55,7 +53,7 @@
               <td>{{ favorite.game_object.source }}</td>
               <td>
                 {% for tag in favorite.game_object.tags.all %}
-                  <span class="tag-pill" style="background-color: {{ tag.color }};">{{ tag.name }}</span>
+                  <span class="tag-pill" style="background-color: {{ tag.color }}; color: {{ tag.color|tag_text_color }};">{{ tag.name }}</span>
                 {% empty %}
                   <span class="muted">No tags</span>
                 {% endfor %}

@@ -1,3 +1,4 @@
+{% load compendium_extras %}
 {% for object in objects %}
   <tr class="compendium-row">
     <td id="favorite-button-{{ object.id }}">
@@ -16,7 +17,7 @@
     <td>{{ object.source }}</td>
     <td>
       {% for tag in object.tags.all %}
-        <span class="tag-pill" style="background-color: {{ tag.color }};">{{ tag.name }}</span>
+        <span class="tag-pill" style="background-color: {{ tag.color }}; color: {{ tag.color|tag_text_color }};">{{ tag.name }}</span>
       {% empty %}
         <span class="muted">No tags</span>
       {% endfor %}

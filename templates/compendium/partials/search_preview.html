@@ -1,3 +1,4 @@
+{% load compendium_extras %}
 {% if objects %}
   <ul class="search-preview-list">
     {% for object in objects %}
@@ -7,7 +8,7 @@
           <span class="search-preview-type muted">{{ object.get_object_type_display }}</span>
           <span class="search-preview-tags">
             {% for tag in object.tags.all|slice:":3" %}
-              <span class="tag-pill" style="background-color: {{ tag.color }}">{{ tag.name }}</span>
+              <span class="tag-pill" style="background-color: {{ tag.color }}; color: {{ tag.color|tag_text_color }};">{{ tag.name }}</span>
             {% empty %}
               <span class="muted">No tags</span>
             {% endfor %}

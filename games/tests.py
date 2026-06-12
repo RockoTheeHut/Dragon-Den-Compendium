@@ -173,3 +173,71 @@ class GameAuthorizationTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Existing Games")
+
+    def test_owner_can_delete_game(self):
+        self.client.force_login(self.owner)
+
+        response = self.client.post(reverse("games:delete", args=[self.game.pk]))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("games:list"))
+        self.assertFalse(Game.objects.filter(pk=self.game.pk).exists())
+
+    def test_owner_can_delete_encounter(self):
+        encounter = Encounter.objects.create(game=self.game, title="Doomed Encounter")
+        self.client.force_login(self.owner)
+
+        response = self.client.post(reverse("games:delete_encounter", args=[self.game.pk, encounter.pk]))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("games:detail", args=[self.game.pk]))
+        self.assertFalse(Encounter.objects.filter(pk=encounter.pk).exists())
+
+    def test_owner_can_edit_player(self):
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            reverse("games:edit_player", args=[self.game.pk, self.player.pk]),
+            data={
+                "name": "Renamed PC",
+                "notes": "Now a backliner",
+                "ac": "18",
+                "strength": "8",
+                "dexterity": "16",
+                "constitution": "12",
+                "intelligence": "17",
+                "wisdom": "14",
+                "charisma": "10",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("games:detail", args=[self.game.pk]))
+        self.player.refresh_from_db()
+        self.assertEqual(self.player.name, "Renamed PC")
+        self.assertEqual(self.player.notes, "Now a backliner")
+        self.assertEqual(self.player.ac, 18)
+        self.assertEqual(self.player.strength, 8)
+        self.assertEqual(self.player.intelligence, 17)
+
+    def test_owner_can_delete_player(self):
+        self.client.force_login(self.owner)
+
+        response = self.client.post(reverse("games:delete_player", args=[self.game.pk, self.player.pk]))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("games:detail", args=[self.game.pk]))
+        self.assertFalse(GamePlayer.objects.filter(pk=self.player.pk).exists())
+
+    def test_edit_player_modal_returns_form_for_owner(self):
+        self.client.force_login(self.owner)
+
+        response = self.client.get(
+            reverse("games:edit_player_modal", args=[self.game.pk, self.player.pk]),
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Owner PC")
+        self.assertContains(response, 'name="name"', html=False)
+        self.assertContains(response, 'name="ac"', html=False)

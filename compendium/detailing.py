@@ -55,12 +55,13 @@ def get_detail_payload(game_object):
     return deepcopy(payload)
 
 
-def build_object_detail_context(game_object, form, user):
+def build_object_detail_context(game_object, form, user, can_edit=False):
     payload = get_detail_payload(game_object)
     return {
         "game_object": game_object,
         "form": form,
         "games": Game.objects.filter(created_by=user).only("id", "title").order_by("title"),
         "is_favorite": Favorite.objects.filter(user=user, game_object=game_object).exists(),
+        "can_edit": can_edit,
         **payload,
     }

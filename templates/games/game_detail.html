@@ -8,7 +8,7 @@
 <section class="panel game-players-panel">
   <div class="inline-header">
     <h2>Game Players</h2>
-    <button class="button" type="button" onclick="openAddPlayerModal()">Add Player</button>
+    <button class="button" type="button" data-modal-open="add-player-modal">Add Player</button>
   </div>
   {% if players %}
     <div class="table-wrap">
@@ -37,11 +37,19 @@
                 </div>
               </td>
               <td>
-                <button class="button small ghost" type="button" onclick="openGamePlayerEditModal({{ player.id }})">Edit</button>
+                <button
+                  class="button small ghost"
+                  type="button"
+                  data-modal-open="game-player-edit-modal"
+                  data-modal-url="{% url 'games:edit_player_modal' game.id player.id %}"
+                  data-modal-content="#game-player-edit-modal-content"
+                >Edit</button>
                 <button
                   class="button danger"
                   type="button"
-                  onclick="openGamePlayerDeleteModal({{ player.id }}, '{{ player.name|escapejs }}')"
+                  data-modal-open="game-player-delete-modal"
+                  data-action-url="{% url 'games:delete_player' game.id player.id %}"
+                  data-modal-title="Delete {{ player.name }}"
                 >Remove</button>
               </td>
             </tr>
@@ -54,11 +62,11 @@
   {% endif %}
 </section>
 
-<div id="add-player-modal" class="modal hidden" onclick="if(event.target === this) closeAddPlayerModal()">
+<div id="add-player-modal" class="modal hidden" data-generic-modal="1">
   <div class="modal-content modal-tool">
     <div class="modal-header">
       <h3>Add Game Player</h3>
-      <button class="button ghost" type="button" onclick="closeAddPlayerModal()">Close</button>
+      <button class="button ghost" type="button" data-modal-close="add-player-modal">Close</button>
     </div>
     <form
       method="post"
@@ -66,7 +74,7 @@
       hx-post="{% url 'games:create_player' game.id %}"
       hx-target="#main-content"
       hx-swap="innerHTML"
-      hx-on::after-request="if(event.detail.successful){ closeAddPlayerModal(); }"
+      hx-on::after-request="if(event.detail.successful){ closeTrackerModal('add-player-modal'); }"
       class="tracker-entry-form"
     >
       {% csrf_token %}
@@ -93,24 +101,24 @@
   </div>
 </div>
 
-<div id="game-player-edit-modal" class="modal hidden" onclick="if(event.target === this) closeGamePlayerEditModal()">
+<div id="game-player-edit-modal" class="modal hidden" data-generic-modal="1">
   <div class="modal-content modal-tool">
     <div class="modal-header">
       <h3>Edit Game Player</h3>
-      <button class="button ghost" type="button" onclick="closeGamePlayerEditModal()">Close</button>
+      <button class="button ghost" type="button" data-modal-close="game-player-edit-modal">Close</button>
     </div>
     <div id="game-player-edit-modal-content" class="tracker-modal-content muted">Loading player form...</div>
   </div>
 </div>
 
-<div id="game-player-delete-modal" class="modal hidden" onclick="if(event.target === this) closeGamePlayerDeleteModal()">
+<div id="game-player-delete-modal" class="modal hidden" data-generic-modal="1">
   <div class="modal-content modal-small">
-    <h3 id="game-player-delete-title">Delete Player</h3>
+    <h3 data-modal-title-target>Delete Player</h3>
     <form id="game-player-delete-form" method="post" action="">
       {% csrf_token %}
       <div class="tracker-modal-actions">
-        <button class="button ghost" type="button" onclick="closeGamePlayerDeleteModal()">Cancel</button>
-        <button id="game-player-delete-confirm" class="button danger" type="submit">Delete</button>
+        <button class="button ghost" type="button" data-modal-close="game-player-delete-modal">Cancel</button>
+        <button class="button danger" type="submit">Delete</button>
       </div>
     </form>
   </div>
@@ -138,7 +146,9 @@
           <button
             class="button danger small"
             type="button"
-            onclick="openEncounterDeleteModal({{ encounter.id }}, '{{ encounter.title|escapejs }}')"
+            data-modal-open="encounter-delete-modal"
+            data-action-url="{% url 'games:delete_encounter' game.id encounter.id %}"
+            data-modal-title="Delete {{ encounter.title }}"
           >Delete</button>
         </li>
       {% endfor %}
@@ -148,111 +158,15 @@
   {% endif %}
 </section>
 
-<div id="encounter-delete-modal" class="modal hidden" onclick="if(event.target === this) closeEncounterDeleteModal()">
+<div id="encounter-delete-modal" class="modal hidden" data-generic-modal="1">
   <div class="modal-content modal-small">
-    <h3 id="encounter-delete-title">Delete Encounter</h3>
+    <h3 data-modal-title-target>Delete Encounter</h3>
     <form id="encounter-delete-form" method="post" action="">
       {% csrf_token %}
       <div class="tracker-modal-actions">
-        <button class="button ghost" type="button" onclick="closeEncounterDeleteModal()">Cancel</button>
-        <button id="encounter-delete-confirm" class="button danger" type="submit">Delete</button>
+        <button class="button ghost" type="button" data-modal-close="encounter-delete-modal">Cancel</button>
+        <button class="button danger" type="submit">Delete</button>
       </div>
     </form>
   </div>
 </div>
-
-<script>
-  function openAddPlayerModal() {
-    const modal = document.getElementById("add-player-modal");
-    if (!modal) return;
-    if (typeof window.openAppModal === "function") {
-      window.openAppModal(modal);
-      return;
-    }
-    modal.classList.remove("hidden");
-  }
-
-  function closeAddPlayerModal() {
-    const modal = document.getElementById("add-player-modal");
-    if (!modal) return;
-    if (typeof window.closeAppModal === "function") {
-      window.closeAppModal(modal);
-      return;
-    }
-    modal.classList.add("hidden");
-  }
-
-  function openGamePlayerEditModal(playerId) {
-    const modal = document.getElementById("game-player-edit-modal");
-    const target = document.getElementById("game-player-edit-modal-content");
-    if (!modal || !target || !window.htmx) return;
-    if (typeof window.openAppModal === "function") {
-      window.openAppModal(modal);
-    } else {
-      modal.classList.remove("hidden");
-    }
-    window.htmx.ajax("GET", "{% url 'games:edit_player_modal' game.id 0 %}".replace("/0/", "/" + playerId + "/"), "#game-player-edit-modal-content");
-  }
-
-  function closeGamePlayerEditModal() {
-    const modal = document.getElementById("game-player-edit-modal");
-    if (!modal) return;
-    if (typeof window.closeAppModal === "function") {
-      window.closeAppModal(modal);
-      return;
-    }
-    modal.classList.add("hidden");
-  }
-
-  function openGamePlayerDeleteModal(playerId, playerName) {
-    const modal = document.getElementById("game-player-delete-modal");
-    const form = document.getElementById("game-player-delete-form");
-    const confirmBtn = document.getElementById("game-player-delete-confirm");
-    const title = document.getElementById("game-player-delete-title");
-    if (!modal || !form || !confirmBtn || !title) return;
-    form.action = "{% url 'games:delete_player' game.id 0 %}".replace("/0/", "/" + playerId + "/");
-    title.textContent = "Delete " + playerName;
-    confirmBtn.textContent = "Delete";
-    if (typeof window.openAppModal === "function") {
-      window.openAppModal(modal);
-      return;
-    }
-    modal.classList.remove("hidden");
-  }
-
-  function closeGamePlayerDeleteModal() {
-    const modal = document.getElementById("game-player-delete-modal");
-    if (!modal) return;
-    if (typeof window.closeAppModal === "function") {
-      window.closeAppModal(modal);
-      return;
-    }
-    modal.classList.add("hidden");
-  }
-
-  function openEncounterDeleteModal(encounterId, encounterName) {
-    const modal = document.getElementById("encounter-delete-modal");
-    const form = document.getElementById("encounter-delete-form");
-    const confirmBtn = document.getElementById("encounter-delete-confirm");
-    const title = document.getElementById("encounter-delete-title");
-    if (!modal || !form || !confirmBtn || !title) return;
-    form.action = "{% url 'games:delete_encounter' game.id 0 %}".replace("/0/", "/" + encounterId + "/");
-    title.textContent = "Delete " + encounterName;
-    confirmBtn.textContent = "Delete";
-    if (typeof window.openAppModal === "function") {
-      window.openAppModal(modal);
-      return;
-    }
-    modal.classList.remove("hidden");
-  }
-
-  function closeEncounterDeleteModal() {
-    const modal = document.getElementById("encounter-delete-modal");
-    if (!modal) return;
-    if (typeof window.closeAppModal === "function") {
-      window.closeAppModal(modal);
-      return;
-    }
-    modal.classList.add("hidden");
-  }
-</script>

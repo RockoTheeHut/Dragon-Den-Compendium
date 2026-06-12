@@ -47,12 +47,25 @@ def object_list(request):
     return render_page(request, "compendium/object_list.html", context)
 
 
+def _can_edit_object(user, game_object):
+    """Custom objects are editable by their creator (or anyone, for legacy
+    unowned rows); shared imported/official content only by staff."""
+    if user.is_staff:
+        return True
+    if game_object.source != GameObject.SourceType.CUSTOM:
+        return False
+    return game_object.created_by_id is None or game_object.created_by_id == user.id
+
+
 @login_required
 def object_create(request):
     if request.method == "POST":
         form = GameObjectCreateForm(request.POST)
         if form.is_valid():
-            game_object = form.save()
+            game_object = form.save(commit=False)
+            game_object.created_by = request.user
+            game_object.save()
+            form.save_m2m()
             messages.success(request, "Game object created.")
             return redirect("compendium:object_detail", pk=game_object.pk)
     else:
@@ -64,7 +77,12 @@ def object_create(request):
 def object_detail(request, pk):
     game_object = get_object_or_404(GameObject.objects.prefetch_related("tags"), pk=pk)
     form = GameObjectEditForm(instance=game_object)
-    context = build_object_detail_context(game_object=game_object, form=form, user=request.user)
+    context = build_object_detail_context(
+        game_object=game_object,
+        form=form,
+        user=request.user,
+        can_edit=_can_edit_object(request.user, game_object),
+    )
     return render_page(request, "compendium/object_detail.html", context)
 
 
@@ -80,13 +98,20 @@ def object_preview_modal(request, pk):
 @require_POST
 def object_edit(request, pk):
     game_object = get_object_or_404(GameObject, pk=pk)
+    if not _can_edit_object(request.user, game_object):
+        return HttpResponseForbidden("Imported and official compendium objects can only be edited by admins.")
     form = GameObjectEditForm(request.POST, instance=game_object)
     if form.is_valid():
         form.save()
         messages.success(request, "Game object updated.")
         return redirect("compendium:object_detail", pk=pk)
 
-    context = build_object_detail_context(game_object=game_object, form=form, user=request.user)
+    context = build_object_detail_context(
+        game_object=game_object,
+        form=form,
+        user=request.user,
+        can_edit=True,
+    )
     return render_page(request, "compendium/object_detail.html", context)
 
 

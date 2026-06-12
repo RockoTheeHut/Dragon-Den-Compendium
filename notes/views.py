@@ -4,31 +4,22 @@ from django.views.decorators.http import require_POST
 
 from core.rendering import render_page
 
-from .models import SCRATCHPAD_MAX_LENGTH, SharedNote
-
-SCRATCHPAD_TITLE = "Scratchpad"
+from .models import SCRATCHPAD_MAX_LENGTH, SCRATCHPAD_TITLE, SharedNote
 
 
 def _get_or_create_scratchpad(user):
-    """Guarantee exactly one private scratchpad note per user."""
-    scratchpad = (
-        SharedNote.objects.filter(
-            created_by=user,
-            title=SCRATCHPAD_TITLE,
-            visibility=SharedNote.Visibility.PRIVATE,
-        )
-        .order_by("-updated_at")
-        .first()
-    )
-    if scratchpad is not None:
-        return scratchpad
+    """Guarantee exactly one private scratchpad note per user.
 
-    return SharedNote.objects.create(
-        title=SCRATCHPAD_TITLE,
-        content="",
+    Backed by the unique_private_scratchpad_per_user constraint, so a
+    concurrent first request can't create a duplicate.
+    """
+    scratchpad, _created = SharedNote.objects.get_or_create(
         created_by=user,
+        title=SCRATCHPAD_TITLE,
         visibility=SharedNote.Visibility.PRIVATE,
+        defaults={"content": ""},
     )
+    return scratchpad
 
 
 def _scratchpad_context(user, in_modal=False):

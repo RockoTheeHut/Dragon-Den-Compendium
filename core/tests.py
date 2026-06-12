@@ -1,14 +1,135 @@
 import tempfile
+from datetime import timedelta
 from pathlib import Path
 
 from django.contrib.auth.models import User
+from django.core.cache import cache
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.utils import timezone
 
 from compendium.models import Favorite, GameObject
 from games.models import Game
+from .import_jobs import reap_stale_jobs
 from .models import CompendiumImportJob, UserImportedObject, UserSettings
+
+
+class HealthzTests(TestCase):
+    def test_healthz_returns_ok_json(self):
+        response = self.client.get(reverse("core:healthz"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers.get("Content-Type"), "application/json")
+        self.assertEqual(response.json(), {"status": "ok"})
+
+
+class SignupTests(TestCase):
+    def setUp(self):
+        # The signup throttle uses a fixed-window cache counter keyed by IP, and
+        # the locmem cache can carry counts over from previous tests.
+        cache.clear()
+
+    def test_signup_success_creates_user_logs_in_and_redirects(self):
+        response = self.client.post(
+            reverse("core:signup"),
+            data={
+                "username": "fresh-dm",
+                "password1": "very-secure-pw-123!",
+                "password2": "very-secure-pw-123!",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("core:home"))
+        self.assertTrue(User.objects.filter(username="fresh-dm").exists())
+        self.assertTrue(response.wsgi_request.user.is_authenticated)
+        self.assertEqual(response.wsgi_request.user.username, "fresh-dm")
+
+    def test_signup_page_renders_form_for_anonymous_user(self):
+        response = self.client.get(reverse("core:signup"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'name="username"', html=False)
+        self.assertContains(response, 'name="password1"', html=False)
+
+    def test_signup_redirects_when_already_authenticated(self):
+        user = User.objects.create_user(username="existing-user", password="pw12345!")
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("core:signup"))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("core:home"))
+
+    def test_signup_rate_limit_blocks_sixth_attempt_in_window(self):
+        invalid_data = {
+            "username": "rate-limited",
+            "password1": "very-secure-pw-123!",
+            "password2": "does-not-match",
+        }
+        for _ in range(5):
+            response = self.client.post(reverse("core:signup"), data=invalid_data)
+            self.assertEqual(response.status_code, 200)
+            self.assertNotContains(response, "Too many sign-up attempts.")
+
+        response = self.client.post(
+            reverse("core:signup"),
+            data={
+                "username": "rate-limited",
+                "password1": "very-secure-pw-123!",
+                "password2": "very-secure-pw-123!",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Too many sign-up attempts.")
+        self.assertFalse(User.objects.filter(username="rate-limited").exists())
+
+
+class ReapStaleJobsTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="reaper", password="pw12345!")
+
+    def _create_job(self, status):
+        return CompendiumImportJob.objects.create(
+            user=self.user,
+            system="dnd5e",
+            use_server_xml=False,
+            import_path="/tmp/example.xml",
+            upload_filename="example.xml",
+            status=status,
+            result_message="Import in progress...",
+        )
+
+    def test_reap_stale_jobs_fails_old_pending_and_running_jobs(self):
+        stale_running = self._create_job(CompendiumImportJob.Status.RUNNING)
+        stale_pending = self._create_job(CompendiumImportJob.Status.PENDING)
+        old_timestamp = timezone.now() - timedelta(hours=3)
+        CompendiumImportJob.objects.filter(pk__in=[stale_running.pk, stale_pending.pk]).update(updated_at=old_timestamp)
+
+        reaped_count = reap_stale_jobs()
+
+        self.assertEqual(reaped_count, 2)
+        stale_running.refresh_from_db()
+        stale_pending.refresh_from_db()
+        self.assertEqual(stale_running.status, CompendiumImportJob.Status.FAILED)
+        self.assertEqual(stale_pending.status, CompendiumImportJob.Status.FAILED)
+        self.assertIn("interrupted", stale_running.result_message)
+        self.assertIsNotNone(stale_running.completed_at)
+
+    def test_reap_stale_jobs_leaves_recent_and_completed_jobs_alone(self):
+        recent_running = self._create_job(CompendiumImportJob.Status.RUNNING)
+        old_succeeded = self._create_job(CompendiumImportJob.Status.SUCCEEDED)
+        CompendiumImportJob.objects.filter(pk=old_succeeded.pk).update(updated_at=timezone.now() - timedelta(hours=3))
+
+        reaped_count = reap_stale_jobs()
+
+        self.assertEqual(reaped_count, 0)
+        recent_running.refresh_from_db()
+        old_succeeded.refresh_from_db()
+        self.assertEqual(recent_running.status, CompendiumImportJob.Status.RUNNING)
+        self.assertEqual(old_succeeded.status, CompendiumImportJob.Status.SUCCEEDED)
 
 
 class HomeViewTests(TestCase):
@@ -207,13 +328,32 @@ class UserSettingsTests(TestCase):
         self.assertFalse(UserImportedObject.objects.filter(user=self.user, game_object=shared_object).exists())
         self.assertContains(response, "Kept 1 shared imported objects")
 
-    def test_remove_user_imported_xml_legacy_fallback_without_mapping_rows(self):
+    def test_remove_user_imported_xml_legacy_fallback_requires_staff(self):
         legacy_import = GameObject.objects.create(
             system="dnd5e",
             object_type=GameObject.ObjectType.ITEM,
             name="Legacy Import Trinket",
             source=GameObject.SourceType.IMPORTED,
         )
+
+        response = self.client.post(
+            reverse("core:remove_user_imported_xml"),
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(GameObject.objects.filter(pk=legacy_import.pk).exists())
+        self.assertContains(response, "No imported XML objects are linked to your account.")
+
+    def test_remove_user_imported_xml_legacy_fallback_as_staff(self):
+        legacy_import = GameObject.objects.create(
+            system="dnd5e",
+            object_type=GameObject.ObjectType.ITEM,
+            name="Legacy Import Trinket",
+            source=GameObject.SourceType.IMPORTED,
+        )
+        self.user.is_staff = True
+        self.user.save(update_fields=["is_staff"])
 
         response = self.client.post(
             reverse("core:remove_user_imported_xml"),

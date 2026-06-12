@@ -72,6 +72,12 @@
     sidebar.classList.toggle("mobile-open");
   }
 
+  function closeMobileSidebar() {
+    const sidebar = document.getElementById("sidebar");
+    if (!sidebar) return;
+    sidebar.classList.remove("mobile-open");
+  }
+
   function wireButtons() {
     const sidebarToggle = document.getElementById("sidebar-toggle");
     if (sidebarToggle) {
@@ -88,6 +94,65 @@
       document.body.classList.toggle("sidebar-collapsed", sidebar.classList.contains("collapsed"));
     }
   }
+
+  // The mobile drawer should not linger: close it after navigating and when
+  // tapping anywhere outside of it.
+  document.addEventListener("click", function (event) {
+    const sidebar = document.getElementById("sidebar");
+    if (!sidebar || !sidebar.classList.contains("mobile-open")) return;
+    if (event.target.closest(".nav-link")) {
+      closeMobileSidebar();
+      return;
+    }
+    if (!sidebar.contains(event.target) && !event.target.closest("#mobile-menu-btn")) {
+      closeMobileSidebar();
+    }
+  });
+
+  // Generic modal triggers: data-modal-open/-close open static modals by id;
+  // adding data-modal-url + data-modal-content loads content over htmx, and
+  // data-action-url/-modal-title rebind a confirm-modal's form and heading.
+  document.addEventListener("click", function (event) {
+    const closer = event.target.closest("[data-modal-close]");
+    if (closer) {
+      closeTrackerModal(closer.dataset.modalClose);
+      return;
+    }
+
+    if (
+      event.target.classList &&
+      event.target.classList.contains("modal") &&
+      event.target.dataset.genericModal === "1"
+    ) {
+      closeTrackerModal(event.target.id);
+      return;
+    }
+
+    const trigger = event.target.closest("[data-modal-open]");
+    if (!trigger) return;
+    const modalId = trigger.dataset.modalOpen;
+    const modal = document.getElementById(modalId);
+    if (!modal) return;
+
+    if (trigger.dataset.actionUrl) {
+      const form = modal.querySelector("form");
+      if (form) {
+        form.action = trigger.dataset.actionUrl;
+      }
+    }
+    if (trigger.dataset.modalTitle) {
+      const titleEl = modal.querySelector("[data-modal-title-target]") || modal.querySelector("h3");
+      if (titleEl) {
+        titleEl.textContent = trigger.dataset.modalTitle;
+      }
+    }
+
+    if (trigger.dataset.modalUrl && trigger.dataset.modalContent) {
+      openModalAndLoad(modalId, trigger.dataset.modalContent, trigger.dataset.modalUrl);
+      return;
+    }
+    openTrackerModal(modalId);
+  });
 
   function wireTurnSorting() {
     const tableBody = document.getElementById("turn-entry-table");

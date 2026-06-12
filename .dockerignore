@@ -1,4 +1,5 @@
 .git
+.github
 .gitignore
 .venv
 __pycache__
@@ -8,7 +9,17 @@ __pycache__
 .pytest_cache
 .mypy_cache
 .ruff_cache
+.coverage
+htmlcov
 db.sqlite3
+*.sqlite3
 staticfiles
+.django_cache
 node_modules
 *.log
+.env
+.env.*
+!.env.example
+dnd.xml
+docs
+AUDIT.md

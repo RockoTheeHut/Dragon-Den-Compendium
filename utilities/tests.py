@@ -249,6 +249,87 @@ class MagicItemSettingsTests(TestCase):
         self.assertIn(owned_game, game_queryset)
         self.assertNotIn(other_game, game_queryset)
 
+    def test_save_magic_item_global_creates_custom_item_and_redirects(self):
+        response = self.client.post(
+            reverse("utilities:save_magic_item_global"),
+            data={
+                "generated_payload": (
+                    '{"name":"Ember Coil","description":"A warm coil of brass.",'
+                    '"mechanics":"Sheds dim light.","suggested_tags":["fire","wondrous"]}'
+                ),
+            },
+        )
+
+        item = GameObject.objects.get(name="Ember Coil")
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("compendium:object_detail", args=[item.pk]))
+        self.assertEqual(item.source, GameObject.SourceType.CUSTOM)
+        self.assertEqual(item.object_type, GameObject.ObjectType.ITEM)
+        self.assertEqual(item.created_by, self.user)
+        self.assertEqual(item.description, "A warm coil of brass.")
+        self.assertEqual(item.data.get("mechanics"), "Sheds dim light.")
+        self.assertEqual(
+            sorted(item.tags.values_list("name", flat=True)),
+            ["fire", "wondrous"],
+        )
+
+    def test_save_magic_item_global_rejects_malformed_json(self):
+        response = self.client.post(
+            reverse("utilities:save_magic_item_global"),
+            data={"generated_payload": "{not valid json"},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(GameObject.objects.count(), 0)
+
+    @override_settings(OPENAI_API_KEY="sk-test-env-key", OPENAI_DEFAULT_MODEL="gpt-5-mini")
+    def test_magic_item_generator_post_stores_payload_and_redirects(self):
+        generated_payload = {
+            "name": "Cloak of Whispers",
+            "description": "Woven from twilight.",
+            "mechanics": "Advantage on Stealth checks.",
+            "suggested_tags": ["stealth"],
+        }
+
+        with patch("utilities.views._generate_magic_item", return_value=generated_payload) as mock_generate:
+            response = self.client.post(
+                reverse("utilities:magic_item"),
+                data={
+                    "item_type": "Cloak",
+                    "rarity": "Rare",
+                    "theme": "Shadow",
+                    "constraints": "",
+                    "more_detail": "",
+                    "model": "gpt-5-mini",
+                },
+            )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("utilities:magic_item"))
+        mock_generate.assert_called_once()
+        self.assertEqual(self.client.session.get("magic_item_generated_payload"), generated_payload)
+        # No paid generation is persisted as a compendium object until the user saves it.
+        self.assertFalse(GameObject.objects.filter(name="Cloak of Whispers").exists())
+
+    @override_settings(OPENAI_API_KEY="sk-test-env-key", OPENAI_DEFAULT_MODEL="gpt-5-mini")
+    def test_magic_item_generator_get_renders_session_payload(self):
+        session = self.client.session
+        session["magic_item_generated_payload"] = {
+            "name": "Cloak of Whispers",
+            "description": "Woven from twilight.",
+            "mechanics": "Advantage on Stealth checks.",
+            "suggested_tags": ["stealth"],
+        }
+        session.save()
+
+        response = self.client.get(reverse("utilities:magic_item"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Cloak of Whispers")
+        self.assertContains(response, "Woven from twilight.")
+        self.assertContains(response, "Advantage on Stealth checks.")
+        self.assertContains(response, "stealth")
+
     def test_save_magic_item_to_game_rejects_other_users_game(self):
         other_user = User.objects.create_user(username="other-owner", password="pw12345!")
         other_game = Game.objects.create(title="Other Game", created_by=other_user)

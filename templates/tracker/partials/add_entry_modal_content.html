@@ -9,6 +9,7 @@
     <section id="tracker-tab-quick" class="tracker-tab-panel">
       <form method="post" action="{% url 'tracker:add_entry' %}" hx-post="{% url 'tracker:add_entry' %}" hx-target="#tracker-list-region" hx-swap="outerHTML" hx-on::after-request="if(event.detail.successful){ closeTrackerModal('tracker-add-modal'); }" class="tracker-entry-form" data-entry-type-toggle="1">
         {% csrf_token %}
+        <input type="hidden" name="encounter_id" value="{{ encounter.pk|default_if_none:'' }}">
         <div class="tracker-form-grid">
           <label>Name {{ manual_form.name }}</label>
           <label>Type <span data-entry-type-select-wrap="1">{{ manual_form.entry_type }}</span></label>
@@ -39,6 +40,7 @@
     <section id="tracker-tab-compendium" class="tracker-tab-panel hidden">
       <form method="post" action="{% url 'tracker:add_from_compendium' %}" hx-post="{% url 'tracker:add_from_compendium' %}" hx-target="#tracker-list-region" hx-swap="outerHTML" hx-on::after-request="if(event.detail.successful){ closeTrackerModal('tracker-add-modal'); }" class="tracker-entry-form" data-compendium-hp-autofill="1">
         {% csrf_token %}
+        <input type="hidden" name="encounter_id" value="{{ encounter.pk|default_if_none:'' }}">
         <div class="tracker-form-grid">
           <label class="tracker-form-span">
             Search Monster
@@ -88,6 +90,7 @@
     <section id="tracker-tab-player" class="tracker-tab-panel hidden">
       <form method="post" action="{% url 'tracker:add_from_player' %}" hx-post="{% url 'tracker:add_from_player' %}" hx-target="#tracker-list-region" hx-swap="outerHTML" hx-on::after-request="if(event.detail.successful){ closeTrackerModal('tracker-add-modal'); }" class="tracker-entry-form">
         {% csrf_token %}
+        <input type="hidden" name="encounter_id" value="{{ encounter.pk|default_if_none:'' }}">
         <div class="tracker-form-grid">
           <label>Game Player {{ from_player_form.source }}</label>
           <label>Name Override {{ from_player_form.name }}</label>

@@ -1,4 +1,5 @@
 import json
+import logging
 import random
 
 from django.conf import settings
@@ -17,8 +18,11 @@ from games.models import GameObjectInstance
 from .forms import ALLOWED_DICE_SIDES, DiceToolForm, MagicItemGeneratorForm, MagicItemSaveGameForm, MagicItemSaveGlobalForm
 
 
+logger = logging.getLogger(__name__)
+
 RANDOM_ITEM_HISTORY_SESSION_KEY = "random_item_picker_history_ids"
 RANDOM_ITEM_HISTORY_LIMIT = 3
+GENERATED_ITEM_SESSION_KEY = "magic_item_generated_payload"
 
 
 def _load_random_item_history_ids(request):
@@ -92,8 +96,8 @@ def _generate_magic_item(payload, model, api_key):
     return generated
 
 
-def _build_magic_item_from_payload(generated):
-    """Persist generated output as a custom compendium item."""
+def _build_magic_item_from_payload(generated, user):
+    """Persist generated output as a custom compendium item owned by its creator."""
     description = generated.get("description", "")
     mechanics = generated.get("mechanics", "")
     return GameObject.objects.create(
@@ -101,6 +105,7 @@ def _build_magic_item_from_payload(generated):
         object_type=GameObject.ObjectType.ITEM,
         name=generated.get("name", "Unnamed Magic Item"),
         source=GameObject.SourceType.CUSTOM,
+        created_by=user,
         description=description,
         data={
             "mechanics": mechanics,
@@ -127,9 +132,11 @@ def _attach_tags(game_object, tag_names, user):
 
 @login_required
 def magic_item_generator(request):
-    """Render generator UI and optionally run one generation request."""
-    generated = None
-    generated_json = ""
+    """Render generator UI and optionally run one generation request.
+
+    Successful generations redirect back to the GET view (POST-redirect-GET)
+    so a browser refresh doesn't silently re-issue a paid OpenAI call.
+    """
     form = MagicItemGeneratorForm(request.POST or None)
     save_global_form = MagicItemSaveGlobalForm()
     save_game_form = MagicItemSaveGameForm(user=request.user)
@@ -149,9 +156,14 @@ def magic_item_generator(request):
                         form.cleaned_data["model"],
                         effective_api_key,
                     )
-                    generated_json = json.dumps(generated)
+                    request.session[GENERATED_ITEM_SESSION_KEY] = generated
+                    return redirect("utilities:magic_item")
                 except Exception as exc:  # noqa: BLE001
+                    logger.exception("Magic item generation failed")
                     messages.error(request, f"Generation failed: {exc}")
+
+    generated = request.session.get(GENERATED_ITEM_SESSION_KEY) if request.method == "GET" else None
+    generated_json = json.dumps(generated) if generated else ""
 
     return render_page(
         request,
@@ -175,7 +187,7 @@ def save_magic_item_global(request):
         return HttpResponseBadRequest("Invalid generated payload.")
 
     generated = json.loads(form.cleaned_data["generated_payload"])
-    game_object = _build_magic_item_from_payload(generated)
+    game_object = _build_magic_item_from_payload(generated, request.user)
     _attach_tags(game_object, generated.get("suggested_tags", []), request.user)
     messages.success(request, "Magic item saved to global compendium.")
     return redirect("compendium:object_detail", pk=game_object.pk)
@@ -191,7 +203,7 @@ def save_magic_item_to_game(request):
     generated = json.loads(form.cleaned_data["generated_payload"])
     game = form.cleaned_data["game"]
 
-    base_object = _build_magic_item_from_payload(generated)
+    base_object = _build_magic_item_from_payload(generated, request.user)
     _attach_tags(base_object, generated.get("suggested_tags", []), request.user)
 
     GameObjectInstance.objects.create(

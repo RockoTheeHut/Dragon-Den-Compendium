@@ -7,14 +7,17 @@
     <div class="tracker-toolbar-right">
       <form method="post" action="{% url 'tracker:previous_turn' %}" hx-post="{% url 'tracker:previous_turn' %}" hx-target="#tracker-list-region" hx-swap="outerHTML">
         {% csrf_token %}
+        <input type="hidden" name="encounter_id" value="{{ encounter.pk|default_if_none:'' }}">
         <button class="button ghost" type="submit">Previous Turn</button>
       </form>
       <form method="post" action="{% url 'tracker:advance_turn' %}" hx-post="{% url 'tracker:advance_turn' %}" hx-target="#tracker-list-region" hx-swap="outerHTML">
         {% csrf_token %}
+        <input type="hidden" name="encounter_id" value="{{ encounter.pk|default_if_none:'' }}">
         <button class="button" type="submit">Advance Turn</button>
       </form>
       <form method="post" action="{% url 'tracker:clear_entries' %}" hx-post="{% url 'tracker:clear_entries' %}" hx-target="#tracker-list-region" hx-swap="outerHTML" hx-confirm="Clear all tracker entries?">
         {% csrf_token %}
+        <input type="hidden" name="encounter_id" value="{{ encounter.pk|default_if_none:'' }}">
         <button class="button danger" type="submit">Clear</button>
       </form>
     </div>
@@ -22,6 +25,7 @@
 
   <form id="reorder-form" method="post" action="{% url 'tracker:reorder' %}" hx-post="{% url 'tracker:reorder' %}" hx-target="#tracker-list-region" hx-swap="outerHTML">
     {% csrf_token %}
+        <input type="hidden" name="encounter_id" value="{{ encounter.pk|default_if_none:'' }}">
     <input type="hidden" name="order" id="turn-order-input">
   </form>
 

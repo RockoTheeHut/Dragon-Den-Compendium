@@ -28,6 +28,7 @@
   <td>
     <form method="post" action="{% url 'tracker:quick_update_entry' entry.id %}" hx-post="{% url 'tracker:quick_update_entry' entry.id %}" hx-swap="none" class="tracker-inline-form">
       {% csrf_token %}
+      <input type="hidden" name="encounter_id" value="{{ entry.encounter_id|default_if_none:'' }}">
       <input type="number" name="initiative" value="{{ entry.initiative|default_if_none:'' }}" class="tracker-num-input" aria-label="Initiative for {{ entry.name }}">
       <button class="button small ghost" type="submit">Save</button>
     </form>
@@ -38,6 +39,7 @@
     {% else %}
       <form method="post" action="{% url 'tracker:quick_update_entry' entry.id %}" hx-post="{% url 'tracker:quick_update_entry' entry.id %}" hx-swap="none" class="tracker-inline-form">
         {% csrf_token %}
+      <input type="hidden" name="encounter_id" value="{{ entry.encounter_id|default_if_none:'' }}">
         <input type="number" name="hp_current" value="{{ entry.hp_current|default_if_none:'' }}" class="tracker-num-input" aria-label="Current HP for {{ entry.name }}">
         <span class="muted">/ {{ entry.hp_max|default:"?" }}</span>
         <button class="button small ghost" type="submit">Save</button>
@@ -59,6 +61,7 @@
   <td>
     <form method="post" action="{% url 'tracker:quick_update_entry' entry.id %}" hx-post="{% url 'tracker:quick_update_entry' entry.id %}" hx-swap="none" class="tracker-toggle-form">
       {% csrf_token %}
+      <input type="hidden" name="encounter_id" value="{{ entry.encounter_id|default_if_none:'' }}">
       <input type="hidden" name="is_active" value="0">
       <label class="tracker-switch">
         <input type="checkbox" name="is_active" value="1" {% if entry.is_active %}checked{% endif %} onchange="this.form.requestSubmit()">
@@ -70,11 +73,13 @@
     <div class="tracker-actions">
       <form method="post" action="{% url 'tracker:set_current' entry.id %}" hx-post="{% url 'tracker:set_current' entry.id %}" hx-target="#tracker-list-region" hx-swap="outerHTML">
         {% csrf_token %}
+      <input type="hidden" name="encounter_id" value="{{ entry.encounter_id|default_if_none:'' }}">
         <button class="button small ghost" type="submit">Current</button>
       </form>
       <button class="button small ghost" type="button" onclick="openTrackerEditModal({{ entry.id }})">Edit</button>
       <form method="post" action="{% url 'tracker:remove_entry' entry.id %}" hx-post="{% url 'tracker:remove_entry' entry.id %}" hx-target="#tracker-list-region" hx-swap="outerHTML" hx-confirm="Remove {{ entry.name }}?">
         {% csrf_token %}
+      <input type="hidden" name="encounter_id" value="{{ entry.encounter_id|default_if_none:'' }}">
         <button class="button small danger" type="submit">Remove</button>
       </form>
     </div>

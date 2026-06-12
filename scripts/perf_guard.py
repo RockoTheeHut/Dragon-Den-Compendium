@@ -191,6 +191,12 @@ def _parse_args():
         default=int(os.getenv("PERF_GUARD_ITERATIONS", "5")),
         help="Number of measured iterations per route (default: 5).",
     )
+    parser.add_argument(
+        "--skip-timing",
+        action="store_true",
+        help="Only enforce query-count and payload-size budgets; skip wall-clock "
+        "thresholds (useful on noisy shared CI runners).",
+    )
     return parser.parse_args()
 
 
@@ -210,11 +216,18 @@ def main():
     detail_object = _build_compendium_fixture()
     first_entry = _build_tracker_fixture(user)
 
+    # Note: with SQLite transaction_mode=IMMEDIATE, the explicit BEGIN inside
+    # transaction.atomic views is counted as a query, so write routes carry +1.
     thresholds = {
         "compendium_detail": {"max_ms": 160, "max_queries": 8, "max_bytes": 450000},
-        "tracker_dashboard": {"max_ms": 180, "max_queries": 6, "max_bytes": 700000},
-        "tracker_quick_update": {"max_ms": 35, "max_queries": 6, "max_bytes": 15000},
+        # Byte budget includes the per-form hidden encounter_id inputs that pin
+        # tracker actions to their encounter.
+        "tracker_dashboard": {"max_ms": 180, "max_queries": 6, "max_bytes": 760000},
+        "tracker_quick_update": {"max_ms": 35, "max_queries": 7, "max_bytes": 15000},
     }
+    if args.skip_timing:
+        for limits in thresholds.values():
+            limits["max_ms"] = float("inf")
 
     checks = []
     try:

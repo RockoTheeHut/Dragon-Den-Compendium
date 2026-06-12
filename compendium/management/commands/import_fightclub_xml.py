@@ -1,10 +1,13 @@
 import hashlib
 import json
 import re
-import xml.etree.ElementTree as ET
 from pathlib import Path
 
+import defusedxml.ElementTree as ET
 from django.core.management.base import BaseCommand, CommandError
+from django.db import transaction
+from django.db.models import Q
+from django.utils import timezone
 
 from compendium.models import GameObject
 
@@ -373,50 +376,83 @@ def import_fightclub_xml_path(file_path, system):
     except ET.ParseError as exc:
         raise CommandError(f"Invalid XML: {exc}") from exc
 
+    # Pass 1: parse every supported element into a flat record list. Only
+    # direct children of the compendium root are object nodes; matching at any
+    # depth would also import e.g. an <item> nested inside another object.
+    records = []
+    for xml_tag, object_type in OBJECT_TYPE_MAP.items():
+        for element in root.findall(xml_tag):
+            name = extract_name(element)
+            payload = element_to_dict(element)
+            external_id = extract_external_id(element)
+            if not external_id:
+                external_id = deterministic_external_id(system, object_type, name, payload)
+            records.append(
+                {
+                    "object_type": object_type,
+                    "name": name,
+                    "description": extract_description(element),
+                    "payload": payload,
+                    "external_id": external_id,
+                }
+            )
+
+    # Within one file the last occurrence of an external id wins, matching the
+    # previous create-then-update behavior.
+    records = list({(r["object_type"], r["external_id"]): r for r in records}.values())
+
     created_count = 0
     updated_count = 0
     skipped_count = 0
     touched_object_ids = []
+    update_fields = ["name", "description", "data", "source", "external_id", "updated_at"]
 
-    for xml_tag, object_type in OBJECT_TYPE_MAP.items():
-        for element in root.findall(f".//{xml_tag}"):
-            name = extract_name(element)
-            description = extract_description(element)
-            payload = element_to_dict(element)
-
-            external_id = extract_external_id(element)
-            if not external_id:
-                external_id = deterministic_external_id(system, object_type, name, payload)
-
-            # Primary match path: stable external ID.
-            existing_object = GameObject.objects.filter(
+    with transaction.atomic():
+        # Pass 2: bulk-fetch every potential match instead of 2-3 queries per
+        # element (a full compendium otherwise issues tens of thousands of
+        # autocommit writes against SQLite's global write lock).
+        existing_by_external_id = {}
+        existing_by_name = {}
+        if records:
+            candidates = GameObject.objects.filter(
                 system=system,
-                object_type=object_type,
-                external_id=external_id,
-            ).first()
+                object_type__in={r["object_type"] for r in records},
+            ).filter(
+                Q(external_id__in=[r["external_id"] for r in records])
+                | Q(name__in=[r["name"] for r in records])
+            ).order_by("pk")
+            for obj in candidates:
+                if obj.external_id:
+                    existing_by_external_id.setdefault((obj.object_type, obj.external_id), obj)
+                # The name fallback keeps earlier imports stable across
+                # re-imports, but must never repurpose a user's same-named
+                # custom object (or an official one).
+                if obj.source == GameObject.SourceType.IMPORTED:
+                    existing_by_name.setdefault((obj.object_type, obj.name), obj)
 
+        to_create = []
+        to_update = []
+        now = timezone.now()
+        for record in records:
+            external_id = record["external_id"]
+            existing_object = existing_by_external_id.get((record["object_type"], external_id))
             if existing_object is None:
-                # Secondary fallback keeps existing objects stable across re-imports.
-                existing_object = GameObject.objects.filter(
-                    system=system,
-                    object_type=object_type,
-                    name=name,
-                ).first()
+                existing_object = existing_by_name.get((record["object_type"], record["name"]))
                 if existing_object is not None and existing_object.external_id:
                     external_id = existing_object.external_id
 
             defaults = {
-                "name": name,
-                "description": description,
-                "data": payload,
+                "name": record["name"],
+                "description": record["description"],
+                "data": record["payload"],
                 "source": GameObject.SourceType.IMPORTED,
                 "external_id": external_id,
             }
 
             if existing_object is None:
-                created = GameObject.objects.create(system=system, object_type=object_type, **defaults)
-                created_count += 1
-                touched_object_ids.append(created.pk)
+                to_create.append(
+                    GameObject(system=system, object_type=record["object_type"], **defaults)
+                )
             else:
                 changed = False
                 for field, value in defaults.items():
@@ -424,13 +460,24 @@ def import_fightclub_xml_path(file_path, system):
                         setattr(existing_object, field, value)
                         changed = True
                 if changed:
-                    existing_object.save()
+                    # bulk_update skips auto_now, but detail caching keys off
+                    # updated_at, so stamp it explicitly.
+                    existing_object.updated_at = now
+                    to_update.append(existing_object)
                     updated_count += 1
                 else:
                     skipped_count += 1
                 touched_object_ids.append(existing_object.pk)
 
-    condition_result = _upsert_dnd5e_conditions(system)
+        if to_create:
+            created_objects = GameObject.objects.bulk_create(to_create, batch_size=500)
+            created_count = len(created_objects)
+            touched_object_ids.extend(obj.pk for obj in created_objects)
+        if to_update:
+            GameObject.objects.bulk_update(to_update, update_fields, batch_size=500)
+
+        condition_result = _upsert_dnd5e_conditions(system)
+
     created_count += condition_result["created"]
     updated_count += condition_result["updated"]
     skipped_count += condition_result["unchanged"]

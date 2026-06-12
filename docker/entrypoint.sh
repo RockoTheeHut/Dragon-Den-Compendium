@@ -33,8 +33,14 @@ if [ "${DJANGO_COLLECTSTATIC:-1}" = "1" ]; then
 fi
 
 if [ "${PERF_GUARD_ON_STARTUP:-1}" = "1" ]; then
-  echo "Running perf guard in startup warning mode..."
-  python scripts/perf_guard.py --warn-only --iterations "${PERF_GUARD_STARTUP_ITERATIONS:-2}" || true
+  echo "Running perf guard in startup warning mode (scratch database)..."
+  PERF_GUARD_DB="${PERF_GUARD_SQLITE_PATH:-/tmp/perf-guard.sqlite3}"
+  rm -f "${PERF_GUARD_DB}" "${PERF_GUARD_DB}-wal" "${PERF_GUARD_DB}-shm"
+  {
+    SQLITE_PATH="${PERF_GUARD_DB}" python manage.py migrate --noinput --verbosity 0 \
+      && SQLITE_PATH="${PERF_GUARD_DB}" python scripts/perf_guard.py --warn-only --iterations "${PERF_GUARD_STARTUP_ITERATIONS:-2}"
+  } || echo "WARNING: perf guard run failed; continuing startup."
+  rm -f "${PERF_GUARD_DB}" "${PERF_GUARD_DB}-wal" "${PERF_GUARD_DB}-shm"
 fi
 
 exec gunicorn dragon_den.wsgi:application \

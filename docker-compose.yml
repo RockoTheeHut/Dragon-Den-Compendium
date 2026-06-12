@@ -4,12 +4,14 @@ services:
       context: .
     container_name: dragon-den-compendium
     ports:
-      - "${WEB_PORT_BIND:-8000:8000}"
+      - "${WEB_PORT_BIND:-127.0.0.1:8000:8000}"
     env_file:
       - .env
     environment:
       DJANGO_SETTINGS_MODULE: ${DJANGO_SETTINGS_MODULE:-dragon_den.settings.base}
       SECRET_KEY: ${SECRET_KEY:-replace-me-in-production}
+      REQUIRE_STRONG_SECRET_KEY: ${REQUIRE_STRONG_SECRET_KEY:-1}
+      FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY:-}
       DEBUG: ${DEBUG:-false}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-127.0.0.1,localhost}
       CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-}
@@ -26,6 +28,8 @@ services:
       PORT: ${PORT:-8000}
       GUNICORN_WORKERS: ${GUNICORN_WORKERS:-3}
       GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-120}
+      TRUST_PROXY_SSL_HEADER: ${TRUST_PROXY_SSL_HEADER:-0}
+      DJANGO_CACHE_DIR: ${DJANGO_CACHE_DIR:-/app/data/cache}
     volumes:
       - app_data:/app/data
       - static_data:/app/staticfiles

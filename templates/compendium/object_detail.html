@@ -1,3 +1,4 @@
+{% load compendium_extras %}
 <section class="panel compendium-entry-page">
   <div class="compendium-entry-main">
     <header class="compendium-entry-sticky">
@@ -20,7 +21,7 @@
       {% if game_object.tags.all %}
         <div class="compendium-entry-tag-row">
           {% for tag in game_object.tags.all %}
-            <span class="tag-pill" style="background-color: {{ tag.color }};">{{ tag.name }}</span>
+            <span class="tag-pill" style="background-color: {{ tag.color }}; color: {{ tag.color|tag_text_color }};">{{ tag.name }}</span>
           {% endfor %}
         </div>
       {% endif %}
@@ -57,6 +58,7 @@
       {% endif %}
     {% endfor %}
     <section class="panel compendium-side-panel compendium-entry-tools">
+      {% if can_edit %}
       <details>
         <summary>Edit Object</summary>
         <div class="compendium-side-stack">
@@ -67,6 +69,7 @@
           </form>
         </div>
       </details>
+      {% endif %}
       <details>
         <summary>Raw Data</summary>
         <pre class="compendium-raw-data">{{ game_object.data|pprint }}</pre>

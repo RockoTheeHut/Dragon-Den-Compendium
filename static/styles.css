@@ -452,25 +452,6 @@ body.is-anonymous .topbar {
   list-style: none;
 }
 
-.search-preview-list li a {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px;
-  border-radius: 8px;
-}
-
-.search-preview-list li a:hover {
-  background: var(--panel-soft);
-}
-
-.search-preview-list li a:focus-visible {
-  outline: none;
-  background: var(--panel-soft);
-  box-shadow: inset 0 0 0 1px rgba(131, 167, 223, 0.45);
-}
-
 .search-preview-open {
   width: 100%;
   border: 0;
@@ -615,10 +596,6 @@ html.theme-light .panel {
 
 .filters-form {
   align-items: end;
-}
-
-.grid-form p {
-  margin: 0 0 10px;
 }
 
 .grid-two {
@@ -1303,17 +1280,6 @@ html.theme-light .tracker-table-wrap {
 .compendium-side-panel details summary {
   cursor: pointer;
   font-weight: 600;
-}
-
-.compendium-reference-group {
-  display: grid;
-  gap: 6px;
-}
-
-.compendium-reference-chip-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
 }
 
 .compendium-raw-data {
@@ -2041,12 +2007,6 @@ html.theme-light .settings-status {
   margin: 0;
 }
 
-.settings-divider {
-  border: 0;
-  border-top: 1px solid var(--border);
-  margin: 2px 0;
-}
-
 .xml-import-loading-card {
   width: min(360px, 90vw);
   min-height: 160px;
@@ -2090,14 +2050,6 @@ html.theme-light .settings-status {
 
 #notes-modal-content #scratchpad-content {
   min-height: min(46vh, 500px);
-}
-
-.note-card {
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-lg);
-  padding: 10px;
-  margin-bottom: 10px;
-  background: #20293c;
 }
 
 .current-turn {
@@ -2228,10 +2180,6 @@ html.theme-light .settings-status {
   border-top: 1px solid var(--border);
 }
 
-.dice-result-pop {
-  animation: dice-pop 0.2s ease-out;
-}
-
 @keyframes dice-pop {
   from {
     transform: scale(0.995);
@@ -2246,10 +2194,6 @@ html.theme-light .settings-status {
 #random-item-result.is-picking {
   animation: random-item-pulse 1.1s ease-in-out infinite;
   border-color: #6d9fd5;
-}
-
-.random-item-result-pop {
-  animation: random-item-pop 0.25s ease-out;
 }
 
 .random-item-history {
@@ -2389,7 +2333,7 @@ select {
   cursor: pointer;
 }
 
-input[type="number"] {
+:root:not(.theme-light) input[type="number"] {
   color-scheme: dark;
 }
 
@@ -2610,5 +2554,24 @@ form.htmx-request button[type="submit"] {
     border-radius: 0;
     border-left: 0;
     border-right: 0;
+  }
+}
+
+/* --- Shell fixes --- */
+
+/* Lock background scroll while any modal is open. */
+body.modal-open {
+  overflow: hidden;
+}
+
+/* Let the topbar wrap instead of overflowing on narrow viewports. */
+@media (max-width: 960px) {
+  .topbar {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  .topbar-actions {
+    flex-wrap: wrap;
   }
 }

@@ -20,6 +20,17 @@ def _is_game_owner(user, game):
     return bool(user and user.is_authenticated and game.created_by_id == user.id)
 
 
+def _get_owned_game_or_forbidden(request, pk, action="edit"):
+    """Fetch a game and enforce ownership in one place.
+
+    Returns (game, None) for the owner, (None, 403 response) otherwise.
+    """
+    game = get_object_or_404(Game.objects.select_related("created_by"), pk=pk)
+    if not _is_game_owner(request.user, game):
+        return None, HttpResponseForbidden(f"Only the creator can {action} this game.")
+    return game, None
+
+
 @login_required
 def game_list(request):
     """Create/list games that belong to the requesting user."""
@@ -50,9 +61,9 @@ def game_list(request):
 @login_required
 def game_detail(request, pk):
     """Show one game with players and encounters."""
-    game = get_object_or_404(Game.objects.select_related("created_by"), pk=pk)
-    if not _is_game_owner(request.user, game):
-        return HttpResponseForbidden("Only the creator can view this game.")
+    game, forbidden = _get_owned_game_or_forbidden(request, pk, action="view")
+    if forbidden:
+        return forbidden
     request.session[LAST_GAME_SESSION_KEY] = game.pk
     players = game.players.order_by("name", "id")
     encounters = game.encounters.order_by("-updated_at", "-id")
@@ -73,9 +84,9 @@ def game_detail(request, pk):
 @login_required
 @require_POST
 def delete_game(request, pk):
-    game = get_object_or_404(Game, pk=pk)
-    if not _is_game_owner(request.user, game):
-        return HttpResponseForbidden("Only the creator can delete this game.")
+    game, forbidden = _get_owned_game_or_forbidden(request, pk, action="delete")
+    if forbidden:
+        return forbidden
 
     if request.session.get(LAST_GAME_SESSION_KEY) == game.pk:
         request.session.pop(LAST_GAME_SESSION_KEY, None)
@@ -88,9 +99,9 @@ def delete_game(request, pk):
 @require_POST
 def edit_instance(request, game_id, instance_id):
     """Update an instance that belongs to a game owned by the current user."""
-    game = get_object_or_404(Game, pk=game_id)
-    if not _is_game_owner(request.user, game):
-        return HttpResponseForbidden("Only the creator can edit this game.")
+    game, forbidden = _get_owned_game_or_forbidden(request, game_id, action="edit")
+    if forbidden:
+        return forbidden
     instance = get_object_or_404(GameObjectInstance, pk=instance_id, game=game)
     form = GameObjectInstanceEditForm(request.POST, instance=instance)
     if form.is_valid():
@@ -105,9 +116,9 @@ def edit_instance(request, game_id, instance_id):
 @require_POST
 def remove_instance(request, game_id, instance_id):
     """Delete an instance that belongs to a game owned by the current user."""
-    game = get_object_or_404(Game, pk=game_id)
-    if not _is_game_owner(request.user, game):
-        return HttpResponseForbidden("Only the creator can edit this game.")
+    game, forbidden = _get_owned_game_or_forbidden(request, game_id, action="edit")
+    if forbidden:
+        return forbidden
     instance = get_object_or_404(GameObjectInstance, pk=instance_id, game=game)
     instance.delete()
     messages.success(request, "Game object removed.")
@@ -117,9 +128,9 @@ def remove_instance(request, game_id, instance_id):
 @login_required
 @require_POST
 def create_encounter(request, game_id):
-    game = get_object_or_404(Game, pk=game_id)
-    if not _is_game_owner(request.user, game):
-        return HttpResponseForbidden("Only the creator can edit this game.")
+    game, forbidden = _get_owned_game_or_forbidden(request, game_id, action="edit")
+    if forbidden:
+        return forbidden
 
     form = EncounterForm(request.POST)
     if form.is_valid():
@@ -135,9 +146,9 @@ def create_encounter(request, game_id):
 @login_required
 @require_POST
 def delete_encounter(request, game_id, encounter_id):
-    game = get_object_or_404(Game, pk=game_id)
-    if not _is_game_owner(request.user, game):
-        return HttpResponseForbidden("Only the creator can edit this game.")
+    game, forbidden = _get_owned_game_or_forbidden(request, game_id, action="edit")
+    if forbidden:
+        return forbidden
 
     encounter = get_object_or_404(Encounter, pk=encounter_id, game=game)
     encounter.delete()
@@ -147,9 +158,9 @@ def delete_encounter(request, game_id, encounter_id):
 
 @login_required
 def open_encounter_tracker(request, game_id, encounter_id):
-    game = get_object_or_404(Game, pk=game_id)
-    if not _is_game_owner(request.user, game):
-        return HttpResponseForbidden("Only the creator can view this game.")
+    game, forbidden = _get_owned_game_or_forbidden(request, game_id, action="view")
+    if forbidden:
+        return forbidden
 
     encounter = get_object_or_404(Encounter, pk=encounter_id, game=game)
     request.session[LAST_GAME_SESSION_KEY] = game.pk
@@ -165,9 +176,9 @@ def open_encounter_tracker(request, game_id, encounter_id):
 @login_required
 @require_POST
 def create_player(request, game_id):
-    game = get_object_or_404(Game, pk=game_id)
-    if not _is_game_owner(request.user, game):
-        return HttpResponseForbidden("Only the creator can edit this game.")
+    game, forbidden = _get_owned_game_or_forbidden(request, game_id, action="edit")
+    if forbidden:
+        return forbidden
 
     form = GamePlayerForm(request.POST)
     if form.is_valid():
@@ -183,9 +194,9 @@ def create_player(request, game_id):
 @login_required
 @require_POST
 def edit_player(request, game_id, player_id):
-    game = get_object_or_404(Game, pk=game_id)
-    if not _is_game_owner(request.user, game):
-        return HttpResponseForbidden("Only the creator can edit this game.")
+    game, forbidden = _get_owned_game_or_forbidden(request, game_id, action="edit")
+    if forbidden:
+        return forbidden
 
     player = get_object_or_404(GamePlayer, pk=player_id, game=game)
     form = GamePlayerForm(request.POST, instance=player)
@@ -200,9 +211,9 @@ def edit_player(request, game_id, player_id):
 @login_required
 @require_POST
 def delete_player(request, game_id, player_id):
-    game = get_object_or_404(Game, pk=game_id)
-    if not _is_game_owner(request.user, game):
-        return HttpResponseForbidden("Only the creator can edit this game.")
+    game, forbidden = _get_owned_game_or_forbidden(request, game_id, action="edit")
+    if forbidden:
+        return forbidden
 
     player = get_object_or_404(GamePlayer, pk=player_id, game=game)
     player.delete()
@@ -212,9 +223,9 @@ def delete_player(request, game_id, player_id):
 
 @login_required
 def edit_player_modal(request, game_id, player_id):
-    game = get_object_or_404(Game, pk=game_id)
-    if not _is_game_owner(request.user, game):
-        return HttpResponseForbidden("Only the creator can edit this game.")
+    game, forbidden = _get_owned_game_or_forbidden(request, game_id, action="edit")
+    if forbidden:
+        return forbidden
     player = get_object_or_404(GamePlayer, pk=player_id, game=game)
     form = GamePlayerForm(instance=player)
     return render(request, "games/partials/edit_player_modal_content.html", {"game": game, "player": player, "form": form})

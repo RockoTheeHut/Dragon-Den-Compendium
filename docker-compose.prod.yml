@@ -6,6 +6,12 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    # The entrypoint starts as root to chown the volumes, then drops to the
+    # unprivileged app user via gosu; these are the minimum caps that needs.
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=64m
     environment:
@@ -23,9 +29,10 @@ services:
       CSRF_COOKIE_SECURE: ${CSRF_COOKIE_SECURE:-1}
       SECURE_CONTENT_TYPE_NOSNIFF: ${SECURE_CONTENT_TYPE_NOSNIFF:-1}
       SECURE_REFERRER_POLICY: ${SECURE_REFERRER_POLICY:-same-origin}
-      SECURE_HSTS_SECONDS: ${SECURE_HSTS_SECONDS:-0}
+      SECURE_HSTS_SECONDS: ${SECURE_HSTS_SECONDS:-31536000}
       SECURE_HSTS_INCLUDE_SUBDOMAINS: ${SECURE_HSTS_INCLUDE_SUBDOMAINS:-0}
       SECURE_HSTS_PRELOAD: ${SECURE_HSTS_PRELOAD:-0}
+      TRUST_PROXY_SSL_HEADER: ${TRUST_PROXY_SSL_HEADER:-1}
     restart: always
 
   caddy:

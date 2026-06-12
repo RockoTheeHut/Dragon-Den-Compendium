@@ -391,6 +391,188 @@ class CompendiumCachingTests(TestCase):
         self.assertNotContains(second_response, "First version")
 
 
+class ObjectCreateTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="creator", password="pw12345!")
+        self.client.force_login(self.user)
+
+    def test_object_create_post_sets_created_by_and_custom_source(self):
+        response = self.client.post(
+            reverse("compendium:object_create"),
+            data={
+                "system": "dnd5e",
+                "object_type": GameObject.ObjectType.ITEM,
+                "name": "Forged Blade",
+                "description": "A blade forged in tests.",
+                "data_text": '{"value": 5}',
+            },
+        )
+
+        game_object = GameObject.objects.get(name="Forged Blade")
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("compendium:object_detail", args=[game_object.pk]))
+        self.assertEqual(game_object.created_by, self.user)
+        self.assertEqual(game_object.source, GameObject.SourceType.CUSTOM)
+        self.assertEqual(game_object.data, {"value": 5})
+
+
+class ObjectEditPermissionTests(TestCase):
+    def setUp(self):
+        self.creator = User.objects.create_user(username="edit-creator", password="pw12345!")
+        self.staff = User.objects.create_user(username="edit-staff", password="pw12345!", is_staff=True)
+        self.custom_object = GameObject.objects.create(
+            system="dnd5e",
+            object_type=GameObject.ObjectType.ITEM,
+            name="Creator Blade",
+            source=GameObject.SourceType.CUSTOM,
+            created_by=self.creator,
+        )
+        self.imported_object = GameObject.objects.create(
+            system="dnd5e",
+            object_type=GameObject.ObjectType.MONSTER,
+            name="Imported Orc",
+            source=GameObject.SourceType.IMPORTED,
+        )
+
+    def _edit_data(self, name):
+        return {"name": name, "description": "", "data_text": "{}"}
+
+    def test_creator_can_edit_own_custom_object(self):
+        self.client.force_login(self.creator)
+
+        response = self.client.post(
+            reverse("compendium:object_edit", args=[self.custom_object.pk]),
+            data=self._edit_data("Renamed Blade"),
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("compendium:object_detail", args=[self.custom_object.pk]))
+        self.custom_object.refresh_from_db()
+        self.assertEqual(self.custom_object.name, "Renamed Blade")
+
+    def test_non_staff_cannot_edit_imported_object(self):
+        self.client.force_login(self.creator)
+
+        response = self.client.post(
+            reverse("compendium:object_edit", args=[self.imported_object.pk]),
+            data=self._edit_data("Hijacked Orc"),
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.imported_object.refresh_from_db()
+        self.assertEqual(self.imported_object.name, "Imported Orc")
+
+    def test_staff_can_edit_imported_object(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            reverse("compendium:object_edit", args=[self.imported_object.pk]),
+            data=self._edit_data("Staff Edited Orc"),
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.imported_object.refresh_from_db()
+        self.assertEqual(self.imported_object.name, "Staff Edited Orc")
+
+
+class ToggleFavoriteTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="favoriter", password="pw12345!")
+        self.client.force_login(self.user)
+        self.object = GameObject.objects.create(
+            system="dnd5e",
+            object_type=GameObject.ObjectType.ITEM,
+            name="Favored Ring",
+            source=GameObject.SourceType.CUSTOM,
+        )
+
+    def test_toggle_favorite_adds_then_removes(self):
+        first_response = self.client.post(reverse("compendium:toggle_favorite", args=[self.object.pk]))
+
+        self.assertEqual(first_response.status_code, 302)
+        self.assertEqual(first_response.url, reverse("compendium:object_detail", args=[self.object.pk]))
+        self.assertTrue(Favorite.objects.filter(user=self.user, game_object=self.object).exists())
+
+        second_response = self.client.post(reverse("compendium:toggle_favorite", args=[self.object.pk]))
+
+        self.assertEqual(second_response.status_code, 302)
+        self.assertFalse(Favorite.objects.filter(user=self.user, game_object=self.object).exists())
+
+
+class QuickSearchRedirectTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="quick-searcher", password="pw12345!")
+        self.client.force_login(self.user)
+
+    def test_quick_search_redirects_to_filtered_list_with_query(self):
+        response = self.client.get(reverse("compendium:search_go"), data={"q": "Magic Missile"})
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, f"{reverse('compendium:list')}?q=Magic+Missile")
+
+    def test_quick_search_without_query_redirects_to_plain_list(self):
+        response = self.client.get(reverse("compendium:search_go"))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("compendium:list"))
+
+
+class ObjectListFilterTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="filterer", password="pw12345!")
+        self.client.force_login(self.user)
+        self.sword = GameObject.objects.create(
+            system="dnd5e",
+            object_type=GameObject.ObjectType.ITEM,
+            name="Flaming Sword",
+            source=GameObject.SourceType.CUSTOM,
+        )
+        self.goblin = GameObject.objects.create(
+            system="dnd5e",
+            object_type=GameObject.ObjectType.MONSTER,
+            name="Goblin Raider",
+            source=GameObject.SourceType.CUSTOM,
+        )
+
+    def test_list_filters_by_query(self):
+        response = self.client.get(reverse("compendium:list"), data={"q": "flaming"})
+
+        self.assertEqual(response.status_code, 200)
+        names = [obj.name for obj in response.context["objects"]]
+        self.assertEqual(names, ["Flaming Sword"])
+        self.assertEqual(response.context["active_filters"]["q"], "flaming")
+
+    def test_list_filters_by_object_type(self):
+        response = self.client.get(
+            reverse("compendium:list"),
+            data={"object_type": GameObject.ObjectType.MONSTER},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        names = [obj.name for obj in response.context["objects"]]
+        self.assertEqual(names, ["Goblin Raider"])
+        self.assertEqual(response.context["active_filters"]["object_type"], GameObject.ObjectType.MONSTER)
+
+
+class TagCreateTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="tag-creator", password="pw12345!")
+        self.client.force_login(self.user)
+
+    def test_post_to_tags_view_creates_tag_owned_by_user(self):
+        response = self.client.post(
+            reverse("compendium:tags"),
+            data={"name": "Fire", "color": "#FF0000", "system": "dnd5e"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("compendium:tags"))
+        tag = Tag.objects.get(name="Fire", system="dnd5e")
+        self.assertEqual(tag.color, "#FF0000")
+        self.assertEqual(tag.created_by, self.user)
+        self.assertFalse(tag.is_system_tag)
+
+
 class TagPermissionTests(TestCase):
     def setUp(self):
         self.owner = User.objects.create_user(username="tag-owner", password="pw12345!")

@@ -8,14 +8,14 @@
       </div>
     </div>
     <form method="get" class="inline-form filters-form compendium-filters-form">
-      <input type="search" name="q" value="{{ active_filters.q }}" placeholder="Search...">
-      <select name="object_type">
+      <input type="search" name="q" value="{{ active_filters.q }}" placeholder="Search..." aria-label="Search objects">
+      <select name="object_type" aria-label="Filter by object type">
         <option value="">All types</option>
         {% for value, label in object_type_choices %}
           <option value="{{ value }}" {% if active_filters.object_type == value %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
-      <select name="tag">
+      <select name="tag" aria-label="Filter by tag">
         <option value="">All tags</option>
         {% for tag in tags %}
           <option value="{{ tag.id }}" {% if active_filters.tag == tag.id|stringformat:'s' %}selected{% endif %}>{{ tag.name }}</option>
@@ -25,7 +25,7 @@
         <input type="checkbox" name="favorites" value="1" {% if active_filters.favorites == '1' %}checked{% endif %}>
         Favorites only
       </label>
-      <select name="sort">
+      <select name="sort" aria-label="Sort order">
         <option value="">Default sort</option>
         <option value="favorites" {% if active_filters.sort == 'favorites' %}selected{% endif %}>Favorites first</option>
       </select>

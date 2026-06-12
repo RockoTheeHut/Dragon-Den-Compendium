@@ -1,3 +1,4 @@
+{% load compendium_extras %}
 <section class="panel narrow">
   <h1>Tag Management</h1>
   <form method="post">
@@ -25,7 +26,7 @@
           {% for tag in tags %}
             <tr>
               <td>{{ tag.name }}</td>
-              <td><span class="tag-pill" style="background-color: {{ tag.color }}">{{ tag.color }}</span></td>
+              <td><span class="tag-pill" style="background-color: {{ tag.color }}; color: {{ tag.color|tag_text_color }};">{{ tag.color }}</span></td>
               <td>{{ tag.system }}</td>
               <td>{% if tag.is_system_tag %}System{% else %}User{% endif %}</td>
               <td>

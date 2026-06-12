@@ -21,7 +21,11 @@ class Game(models.Model):
 class GameObjectInstance(models.Model):
     """Per-game snapshot/copy of a base compendium object."""
     game = models.ForeignKey(Game, on_delete=models.CASCADE, related_name="object_instances")
-    base_object = models.ForeignKey(GameObject, on_delete=models.CASCADE, related_name="game_instances")
+    # SET_NULL keeps the per-game copy alive when the base compendium object
+    # is deleted — the instance duplicates all data precisely to be independent.
+    base_object = models.ForeignKey(
+        GameObject, on_delete=models.SET_NULL, null=True, blank=True, related_name="game_instances"
+    )
     name = models.CharField(max_length=255)
     object_type = models.CharField(max_length=32, choices=GameObject.ObjectType.choices, db_index=True)
     description = models.TextField(blank=True, null=True)

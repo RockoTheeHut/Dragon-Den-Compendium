@@ -559,6 +559,213 @@ class TurnTrackerTests(TestCase):
         self.assertTrue(first.is_current)
         self.assertFalse(second.is_current)
 
+    def test_manual_add_entry_assigns_incrementing_sort_order(self):
+        first_response = self.client.post(
+            reverse("tracker:add_entry"),
+            data={
+                "name": "Fighter",
+                "entry_type": TurnTrackerEntry.EntryType.PLAYER,
+                "initiative": "15",
+                "is_active": "on",
+                "notes": "",
+                "items_text": "",
+            },
+        )
+        second_response = self.client.post(
+            reverse("tracker:add_entry"),
+            data={
+                "name": "Goblin",
+                "entry_type": TurnTrackerEntry.EntryType.ENEMY,
+                "initiative": "9",
+                "is_active": "on",
+                "hp_current": "7",
+                "hp_max": "7",
+                "notes": "",
+                "items_text": "",
+            },
+        )
+
+        self.assertEqual(first_response.status_code, 200)
+        self.assertEqual(second_response.status_code, 200)
+        fighter = TurnTrackerEntry.objects.get(user=self.user, name="Fighter")
+        goblin = TurnTrackerEntry.objects.get(user=self.user, name="Goblin")
+        self.assertEqual(fighter.sort_order, 0)
+        self.assertEqual(goblin.sort_order, 1)
+        self.assertEqual(fighter.source_kind, TurnTrackerEntry.SourceKind.MANUAL)
+        self.assertEqual(goblin.hp_current, 7)
+
+    def test_edit_entry_updates_fields(self):
+        entry = TurnTrackerEntry.objects.create(
+            user=self.user,
+            name="Bandit",
+            entry_type=TurnTrackerEntry.EntryType.ENEMY,
+            initiative=8,
+            hp_current=11,
+            hp_max=11,
+            sort_order=0,
+        )
+
+        response = self.client.post(
+            reverse("tracker:edit_entry", args=[entry.id]),
+            data={
+                "name": "Bandit Captain",
+                "entry_type": TurnTrackerEntry.EntryType.ENEMY,
+                "initiative": "17",
+                "is_active": "on",
+                "hp_current": "5",
+                "hp_max": "11",
+                "notes": "Bloodied",
+                "items_text": "Scimitar",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        entry.refresh_from_db()
+        self.assertEqual(entry.name, "Bandit Captain")
+        self.assertEqual(entry.initiative, 17)
+        self.assertEqual(entry.hp_current, 5)
+        self.assertEqual(entry.notes, "Bloodied")
+        self.assertEqual(entry.items_text, "Scimitar")
+
+    def test_remove_entry_deletes_and_renormalizes_sort_order(self):
+        first = TurnTrackerEntry.objects.create(
+            user=self.user, name="One", entry_type=TurnTrackerEntry.EntryType.PLAYER, sort_order=0
+        )
+        second = TurnTrackerEntry.objects.create(
+            user=self.user, name="Two", entry_type=TurnTrackerEntry.EntryType.NPC, sort_order=1
+        )
+        third = TurnTrackerEntry.objects.create(
+            user=self.user, name="Three", entry_type=TurnTrackerEntry.EntryType.ENEMY, sort_order=2
+        )
+
+        response = self.client.post(reverse("tracker:remove_entry", args=[second.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(TurnTrackerEntry.objects.filter(pk=second.pk).exists())
+        first.refresh_from_db()
+        third.refresh_from_db()
+        self.assertEqual(first.sort_order, 0)
+        self.assertEqual(third.sort_order, 1)
+
+    def test_set_current_marks_exactly_one_entry_current(self):
+        first = TurnTrackerEntry.objects.create(
+            user=self.user, name="Alpha", entry_type=TurnTrackerEntry.EntryType.PLAYER, sort_order=0, is_current=True
+        )
+        second = TurnTrackerEntry.objects.create(
+            user=self.user, name="Beta", entry_type=TurnTrackerEntry.EntryType.ENEMY, sort_order=1
+        )
+
+        response = self.client.post(reverse("tracker:set_current", args=[second.id]))
+
+        self.assertEqual(response.status_code, 200)
+        first.refresh_from_db()
+        second.refresh_from_db()
+        self.assertFalse(first.is_current)
+        self.assertTrue(second.is_current)
+        self.assertEqual(TurnTrackerEntry.objects.filter(user=self.user, is_current=True).count(), 1)
+
+    def test_clear_entries_only_wipes_active_scope(self):
+        game = Game.objects.create(title="Campaign", created_by=self.user)
+        encounter = Encounter.objects.create(game=game, title="Ambush")
+        TurnTrackerEntry.objects.create(
+            user=self.user, encounter=None, name="Global Entry", entry_type=TurnTrackerEntry.EntryType.NPC, sort_order=0
+        )
+        TurnTrackerEntry.objects.create(
+            user=self.user, encounter=encounter, name="Encounter Entry", entry_type=TurnTrackerEntry.EntryType.ENEMY, sort_order=0
+        )
+
+        # Empty encounter_id targets the standalone tracker scope.
+        response = self.client.post(reverse("tracker:clear_entries"), data={"encounter_id": ""})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(TurnTrackerEntry.objects.filter(user=self.user, encounter=None).exists())
+        self.assertTrue(TurnTrackerEntry.objects.filter(user=self.user, encounter=encounter).exists())
+
+        # An explicit encounter_id targets just that encounter's scope.
+        response = self.client.post(reverse("tracker:clear_entries"), data={"encounter_id": str(encounter.pk)})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(TurnTrackerEntry.objects.filter(user=self.user, encounter=encounter).exists())
+
+    def test_status_effect_play_pause_reset_remove(self):
+        entry = TurnTrackerEntry.objects.create(
+            user=self.user, name="Cleric", entry_type=TurnTrackerEntry.EntryType.PLAYER, sort_order=0
+        )
+        effect = StatusEffect.objects.create(
+            entry=entry,
+            name="Bless",
+            duration_rounds=5,
+            remaining_rounds=2,
+            is_running=False,
+        )
+
+        play_response = self.client.post(reverse("tracker:play_status_effect", args=[effect.id]))
+        effect.refresh_from_db()
+        self.assertEqual(play_response.status_code, 200)
+        self.assertTrue(effect.is_running)
+
+        pause_response = self.client.post(reverse("tracker:pause_status_effect", args=[effect.id]))
+        effect.refresh_from_db()
+        self.assertEqual(pause_response.status_code, 200)
+        self.assertFalse(effect.is_running)
+
+        reset_response = self.client.post(reverse("tracker:reset_status_effect", args=[effect.id]))
+        effect.refresh_from_db()
+        self.assertEqual(reset_response.status_code, 200)
+        self.assertEqual(effect.remaining_rounds, 5)
+
+        remove_response = self.client.post(reverse("tracker:remove_status_effect", args=[effect.id]))
+        self.assertEqual(remove_response.status_code, 200)
+        self.assertFalse(StatusEffect.objects.filter(pk=effect.pk).exists())
+
+    def test_other_user_cannot_quick_update_or_remove_entry(self):
+        entry = TurnTrackerEntry.objects.create(
+            user=self.user, name="Protected", entry_type=TurnTrackerEntry.EntryType.PLAYER, initiative=10, sort_order=0
+        )
+        intruder = User.objects.create_user(username="intruder", password="pw12345!")
+        self.client.force_login(intruder)
+
+        quick_update_response = self.client.post(
+            reverse("tracker:quick_update_entry", args=[entry.id]),
+            data={"initiative": "1"},
+        )
+        remove_response = self.client.post(reverse("tracker:remove_entry", args=[entry.id]))
+
+        self.assertEqual(quick_update_response.status_code, 404)
+        self.assertEqual(remove_response.status_code, 404)
+        entry.refresh_from_db()
+        self.assertEqual(entry.initiative, 10)
+
+    def test_dashboard_rejects_non_numeric_encounter_id(self):
+        response = self.client.get(reverse("tracker:dashboard"), data={"encounter": "abc"})
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_dashboard_rejects_unknown_encounter_id(self):
+        response = self.client.get(reverse("tracker:dashboard"), data={"encounter": "999999"})
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_post_with_other_users_encounter_id_returns_404(self):
+        other_user = User.objects.create_user(username="rival-dm", password="pw12345!")
+        other_game = Game.objects.create(title="Rival Table", created_by=other_user)
+        other_encounter = Encounter.objects.create(game=other_game, title="Rival Fight")
+
+        response = self.client.post(
+            reverse("tracker:add_entry"),
+            data={
+                "name": "Sneaky Add",
+                "entry_type": TurnTrackerEntry.EntryType.ENEMY,
+                "is_active": "on",
+                "notes": "",
+                "items_text": "",
+                "encounter_id": str(other_encounter.pk),
+            },
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertFalse(TurnTrackerEntry.objects.filter(name="Sneaky Add").exists())
+
     def test_dashboard_with_encounter_scope_shows_only_encounter_entries(self):
         game = Game.objects.create(title="Campaign", created_by=self.user)
         encounter = Encounter.objects.create(game=game, title="Bandit Fight")

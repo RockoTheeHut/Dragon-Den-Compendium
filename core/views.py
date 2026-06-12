@@ -3,6 +3,7 @@ from pathlib import Path
 
 from django.conf import settings
 from django.contrib.auth import login
+from django.contrib.auth import views as auth_views
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse
@@ -11,15 +12,28 @@ from django.shortcuts import redirect
 from django.shortcuts import render
 from django.views.decorators.http import require_POST
 from django.views.decorators.http import require_GET
+from django.db import transaction
 from django.db.models import Count
 
 from compendium.models import Favorite
 from games.models import Game
 
 from .forms import CompendiumUploadImportForm, SignUpForm, UserSettingsForm
-from .import_jobs import schedule_import_job
+from .import_jobs import reap_stale_jobs, schedule_import_job
 from .models import CompendiumImportJob, UserImportedObject, UserSettings
 from .rendering import render_page
+from .throttle import rate_limit_exceeded
+
+
+class ThrottledLoginView(auth_views.LoginView):
+    """Login with a per-IP attempt limit to slow credential brute-forcing."""
+
+    def post(self, request, *args, **kwargs):
+        if rate_limit_exceeded(request, "login", limit=10, window_seconds=300):
+            form = self.get_form()
+            form.add_error(None, "Too many login attempts. Please wait a few minutes and try again.")
+            return self.form_invalid(form)
+        return super().post(request, *args, **kwargs)
 
 
 def healthz(_request):
@@ -62,7 +76,9 @@ def signup(request):
 
     if request.method == "POST":
         form = SignUpForm(request.POST)
-        if form.is_valid():
+        if rate_limit_exceeded(request, "signup", limit=5, window_seconds=3600):
+            form.add_error(None, "Too many sign-up attempts. Please wait a while and try again.")
+        elif form.is_valid():
             user = form.save()
             login(request, user)
             return redirect("core:home")
@@ -110,6 +126,7 @@ def _settings_context(request, settings_form=None, upload_form=None, import_resu
     )
     if not has_server_xml:
         upload_form.fields["use_server_xml"].widget.attrs["disabled"] = "disabled"
+    reap_stale_jobs()
     active_import_job = (
         CompendiumImportJob.objects.filter(
             user=request.user,
@@ -182,16 +199,21 @@ def import_user_compendium_xml(request):
                 context = _settings_context(request, upload_form=upload_form, import_result_message=import_result_message)
                 return _render_settings_modal_response(request, context, trigger_compendium_reload=False)
 
-        job = CompendiumImportJob.objects.create(
-            user=request.user,
-            system=system,
-            use_server_xml=use_server_xml,
-            import_path=str(import_path),
-            upload_filename=upload_filename,
-            status=CompendiumImportJob.Status.PENDING,
-            result_message="Import queued.",
-        )
-        schedule_import_job(job.pk)
+        try:
+            job = CompendiumImportJob.objects.create(
+                user=request.user,
+                system=system,
+                use_server_xml=use_server_xml,
+                import_path=str(import_path),
+                upload_filename=upload_filename,
+                status=CompendiumImportJob.Status.PENDING,
+                result_message="Import queued.",
+            )
+            schedule_import_job(job.pk)
+        except Exception:
+            if temp_path is not None:
+                temp_path.unlink(missing_ok=True)
+            raise
         job.refresh_from_db()
         should_reload_compendium = job.status == CompendiumImportJob.Status.SUCCEEDED
         import_result_message = job.result_message or "Import queued."
@@ -227,9 +249,11 @@ def remove_user_imported_xml(request):
     mappings = UserImportedObject.objects.filter(user=request.user)
     mapped_object_ids = list(mappings.values_list("game_object_id", flat=True))
     if not mapped_object_ids:
-        # Legacy fallback: if no mapping rows exist at all yet, treat imported rows as pre-tracking legacy data.
+        # Legacy fallback: if no mapping rows exist at all yet, treat imported rows
+        # as pre-tracking legacy data. This wipes every import server-wide, so it
+        # is reserved for admins.
         has_any_mapping_rows = UserImportedObject.objects.exists()
-        if not has_any_mapping_rows:
+        if not has_any_mapping_rows and request.user.is_staff:
             from compendium.models import GameObject
 
             removed_count = GameObject.objects.filter(
@@ -245,25 +269,26 @@ def remove_user_imported_xml(request):
         context = _settings_context(request, import_result_message=import_result_message)
         return _render_settings_modal_response(request, context, trigger_compendium_reload=False)
 
-    usage_counts = {
-        row["game_object_id"]: row["total_users"]
-        for row in UserImportedObject.objects.filter(game_object_id__in=mapped_object_ids)
-        .values("game_object_id")
-        .annotate(total_users=Count("user", distinct=True))
-    }
-    deletable_ids = [object_id for object_id in mapped_object_ids if usage_counts.get(object_id, 0) <= 1]
-    shared_ids = [object_id for object_id in mapped_object_ids if usage_counts.get(object_id, 0) > 1]
+    with transaction.atomic():
+        usage_counts = {
+            row["game_object_id"]: row["total_users"]
+            for row in UserImportedObject.objects.filter(game_object_id__in=mapped_object_ids)
+            .values("game_object_id")
+            .annotate(total_users=Count("user", distinct=True))
+        }
+        deletable_ids = [object_id for object_id in mapped_object_ids if usage_counts.get(object_id, 0) <= 1]
+        shared_ids = [object_id for object_id in mapped_object_ids if usage_counts.get(object_id, 0) > 1]
 
-    mappings.delete()
+        mappings.delete()
 
-    removed_count = 0
-    if deletable_ids:
-        from compendium.models import GameObject
+        removed_count = 0
+        if deletable_ids:
+            from compendium.models import GameObject
 
-        removed_count = GameObject.objects.filter(
-            id__in=deletable_ids,
-            source=GameObject.SourceType.IMPORTED,
-        ).delete()[0]
+            removed_count = GameObject.objects.filter(
+                id__in=deletable_ids,
+                source=GameObject.SourceType.IMPORTED,
+            ).delete()[0]
 
     import_result_message = f"Removed {removed_count} imported objects linked only to your account."
     if shared_ids:

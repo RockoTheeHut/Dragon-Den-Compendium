@@ -16,7 +16,7 @@ Dragon Den is an all-in-one DM workspace:
 - Fight Club XML import (upload per user or server-wide XML path)
 - OpenAI-powered magic item generation (optional)
 
-All authenticated users are regular users. There is no Django admin/staff role workflow in this project.
+Regular users own their games, tracker entries, notes, and the custom compendium objects they create. Staff users (managed through the Django admin at `/admin/`) can additionally edit shared imported/official compendium content.
 
 ## Visuals
 
@@ -37,10 +37,11 @@ Compendium (Image #2):
 ## Tech Stack
 
 - Python `3.14.x`
-- Django `5.2.8`
-- SQLite
-- Django templates + HTMX + SortableJS
-- OpenAI Python SDK `2.17.0` (optional feature)
+- Django `5.2.x` (LTS)
+- SQLite (WAL mode, busy timeout, immediate transactions)
+- Django templates + HTMX + SortableJS (self-hosted under `static/vendor/`)
+- defusedxml for safe compendium XML parsing
+- OpenAI Python SDK (optional feature)
 - Gunicorn + WhiteNoise (Docker runtime)
 - Optional Caddy reverse proxy for TLS and host routing
 
@@ -57,8 +58,11 @@ Apps:
 
 Settings split:
 
-- `dragon_den/settings/base.py`
-- `dragon_den/settings/local.py`
+- `dragon_den/settings/base.py` — hardened defaults; WSGI/ASGI and Docker use this
+- `dragon_den/settings/local.py` — development (`DEBUG=True`); `manage.py` defaults to this
+
+Non-debug deployments refuse to start with a placeholder `SECRET_KEY` unless
+you explicitly set `REQUIRE_STRONG_SECRET_KEY=0`.
 
 ## Local Development
 
@@ -84,17 +88,20 @@ Create `.env` (or export env vars directly). Use `.env.example` as the template.
 
 Important variables:
 
-- `SECRET_KEY`
+- `SECRET_KEY` (generate: `python -c "import secrets; print(secrets.token_urlsafe(50))"`)
+- `REQUIRE_STRONG_SECRET_KEY` (defaults to `1` whenever `DEBUG` is false; placeholder keys abort startup)
+- `FIELD_ENCRYPTION_KEY` (optional dedicated key for encrypting stored user API keys; lets you rotate `SECRET_KEY` without losing them)
 - `DEBUG` (`false` by default)
 - `ALLOWED_HOSTS` (comma-separated)
 - `CSRF_TRUSTED_ORIGINS` (comma-separated full origins)
 - `SQLITE_PATH` (optional custom DB path)
-- `WEB_PORT_BIND` (default `8000:8000`, set `127.0.0.1:8000:8000` when behind Caddy)
+- `WEB_PORT_BIND` (default `127.0.0.1:8000:8000`)
+- `TRUST_PROXY_SSL_HEADER` (set `1` only when behind a reverse proxy that sets `X-Forwarded-Proto`)
 - `OPENAI_API_KEY` (optional, needed for magic item generation)
 - `OPENAI_DEFAULT_MODEL` (default: `gpt-5-mini`)
 - `SERVER_COMPENDIUM_XML_PATH` (optional server-side XML path)
 - `SERVER_COMPENDIUM_SYSTEM` (default: `dnd5e`)
-- `REQUIRE_STRONG_SECRET_KEY` (`1` recommended in production)
+- `COMPENDIUM_IMPORT_ASYNC` (default `1`; run imports in a background thread)
 - `SECURE_SSL_REDIRECT`, `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`
 - `SECURE_HSTS_SECONDS`, `SECURE_HSTS_INCLUDE_SUBDOMAINS`, `SECURE_HSTS_PRELOAD`
 - `SECURE_CONTENT_TYPE_NOSNIFF`, `SECURE_REFERRER_POLICY`
@@ -118,10 +125,13 @@ Open: `http://127.0.0.1:8000`
 
 Import characteristics:
 
-- Upsert-style and idempotent
-- Tries external id first
+- Upsert-style and idempotent, runs in a single transaction with bulk reads/writes
+- XML is parsed with `defusedxml` (entity-expansion attacks rejected)
+- Tries external id first; a database unique constraint on
+  `(system, object_type, external_id)` guarantees no duplicates
 - Falls back to deterministic hash id when external id is missing
-- Secondary match by `(system, object_type, name)` preserves stable ids
+- Secondary match by `(system, object_type, name)` preserves stable ids for
+  earlier imports, but never overwrites custom or official objects
 
 ### In-app import
 
@@ -143,7 +153,8 @@ Startup behavior:
 
 - `migrate` (toggle with `DJANGO_MIGRATE`)
 - `collectstatic` (toggle with `DJANGO_COLLECTSTATIC`)
-- startup `perf_guard` in warning mode (toggle with `PERF_GUARD_ON_STARTUP`)
+- startup `perf_guard` in warning mode against a throwaway scratch database,
+  never the live one (toggle with `PERF_GUARD_ON_STARTUP`)
 
 Container runtime:
 
@@ -214,18 +225,21 @@ This overlay:
 - keeps migrate/collectstatic/perf-startup hooks on (configurable by env)
 - increases default gunicorn workers
 - sets restart policy to `always`
-- sets secure-cookie/HTTPS settings via env defaults in production
+- sets secure-cookie/HTTPS settings via env defaults in production (including HSTS and `TRUST_PROXY_SSL_HEADER=1`)
 - binds app port to loopback by default (`127.0.0.1:8000:8000`)
-- applies container hardening (`no-new-privileges`, `cap_drop: ALL`, tmpfs `/tmp` for web)
+- applies container hardening (`no-new-privileges`, `cap_drop: ALL` plus only the
+  `CHOWN`/`SETUID`/`SETGID` capabilities the privilege-dropping entrypoint needs,
+  tmpfs `/tmp` for web)
 
 ## Internet Deployment Security
 
 If you expose the app outside your local network, use this minimum checklist.
 
+Login and signup are rate-limited per IP out of the box.
+
 ### Required
 
-- Set a strong random `SECRET_KEY`
-- Set `REQUIRE_STRONG_SECRET_KEY=1`
+- Set a strong random `SECRET_KEY` (placeholder values abort startup by default)
 - Set `DEBUG=false`
 - Set exact `ALLOWED_HOSTS` (domain only, no wildcard unless intentional)
 - Set exact `CSRF_TRUSTED_ORIGINS` (full `https://...` origins)
@@ -282,10 +296,11 @@ If thresholds exceed:
 
 ## Docker CI Smoke Test
 
-Run local smoke check:
+Run local smoke check (set `USE_PROD_OVERLAY=1` to exercise the hardened overlay):
 
 ```bash
 scripts/docker_smoke_test.sh
+USE_PROD_OVERLAY=1 scripts/docker_smoke_test.sh
 ```
 
 What it validates:
@@ -294,9 +309,12 @@ What it validates:
 - container startup + healthcheck
 - `GET /healthz/` readiness
 
-CI:
+CI (GitHub Actions):
 
-- GitHub Actions workflow: `.github/workflows/docker-smoke.yml`
+- `.github/workflows/tests.yml` — Django system checks + full test suite
+- `.github/workflows/docker-smoke.yml` — smoke test for both the base compose and the production overlay
+- `.github/workflows/perf-guard.yml` — query-count and payload-size budgets (wall-clock thresholds are skipped on shared runners)
+- `.github/dependabot.yml` — weekly dependency updates (pip, actions, docker)
 
 ## Testing
 
@@ -305,6 +323,10 @@ Run full test suite:
 ```powershell
 .\.venv\Scripts\python manage.py test
 ```
+
+## License
+
+MIT — see [LICENSE](LICENSE).
 
 ## Project Status
 

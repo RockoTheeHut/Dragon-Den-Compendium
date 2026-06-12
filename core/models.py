@@ -1,9 +1,12 @@
 import base64
 import hashlib
+import logging
 
 from django.conf import settings as django_settings
 from django.db import models
 from cryptography.fernet import Fernet, InvalidToken
+
+logger = logging.getLogger(__name__)
 
 
 class UserSettings(models.Model):
@@ -21,7 +24,8 @@ class UserSettings(models.Model):
 
     @staticmethod
     def _cipher():
-        digest = hashlib.sha256(django_settings.SECRET_KEY.encode("utf-8")).digest()
+        key_material = getattr(django_settings, "FIELD_ENCRYPTION_KEY", "") or django_settings.SECRET_KEY
+        digest = hashlib.sha256(key_material.encode("utf-8")).digest()
         return Fernet(base64.urlsafe_b64encode(digest))
 
     @classmethod
@@ -42,6 +46,9 @@ class UserSettings(models.Model):
         try:
             return cls._cipher().decrypt(cleaned[4:].encode("utf-8")).decode("utf-8")
         except InvalidToken:
+            logger.warning(
+                "Could not decrypt a stored API key (was SECRET_KEY/FIELD_ENCRYPTION_KEY rotated?); treating it as unset."
+            )
             return ""
 
     def get_openai_api_key(self):
